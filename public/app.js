@@ -1,5 +1,5 @@
 ﻿// Config
-const WS_URL = 'wss://discord-clone-ws.onrender.com';
+const WS_URL = 'https://discord-clone-ws.onrender.com';
 // const WS_URL = 'ws://localhost:3001';
 
 // State
@@ -1458,43 +1458,61 @@ function init() {
   };
   
   // Delete server
-  $('#delete-server-btn').onclick = () => {
-    if (confirm('�� ������� ��� ������ ������� ������? ��� �������� ������ ��������.')) {
-      send({ type: 'delete_server', serverId: state.contextServer });
-      closeModal('server-settings-modal');
-    }
-  };
+  const deleteServerBtn = $('#delete-server-btn');
+  if (deleteServerBtn) {
+    deleteServerBtn.onclick = () => {
+      if (confirm('Вы уверены что хотите удалить сервер? Это действие нельзя отменить.')) {
+        send({ type: 'delete_server', serverId: state.contextServer });
+        closeModal('server-settings-modal');
+      }
+    };
+  }
   
   // Create role
-  $('#create-role-btn').onclick = () => {
-    const name = $('#new-role-name').value.trim();
-    const color = $('#new-role-color').value;
-    if (!name) return;
-    send({ type: 'create_role', serverId: state.contextServer, name, color });
-    $('#new-role-name').value = '';
-  };
+  const createRoleBtn = $('#create-role-btn');
+  if (createRoleBtn) {
+    createRoleBtn.onclick = () => {
+      const name = $('#new-role-name').value.trim();
+      const color = $('#new-role-color').value;
+      if (!name) return;
+      send({ type: 'create_role', serverId: state.contextServer, name, color });
+      $('#new-role-name').value = '';
+    };
+  }
   
   // Create invite from settings
-  $('#create-invite-btn').onclick = () => {
-    send({ type: 'create_invite', serverId: state.contextServer });
-  };
+  const createInviteBtn = $('#create-invite-btn');
+  if (createInviteBtn) {
+    createInviteBtn.onclick = () => {
+      send({ type: 'create_invite', serverId: state.contextServer });
+    };
+  }
   
   // Create channel
-  $('#add-channel-btn').onclick = () => { state.creatingVoice = false; openModal('channel-modal'); };
-  $('#add-voice-btn').onclick = () => { state.creatingVoice = true; openModal('channel-modal'); };
-  $('#create-channel-btn').onclick = () => {
-    const name = $('#new-channel-name').value.trim();
-    if (!name) return;
-    send({ type: 'create_channel', serverId: state.currentServer, name, isVoice: state.creatingVoice });
-    $('#new-channel-name').value = '';
-  };
+  const addChannelBtn = $('#add-channel-btn');
+  if (addChannelBtn) addChannelBtn.onclick = () => { state.creatingVoice = false; openModal('channel-modal'); };
+  const addVoiceBtn = $('#add-voice-btn');
+  if (addVoiceBtn) addVoiceBtn.onclick = () => { state.creatingVoice = true; openModal('channel-modal'); };
+  const createChannelBtn = $('#create-channel-btn');
+  if (createChannelBtn) {
+    createChannelBtn.onclick = () => {
+      const name = $('#new-channel-name').value.trim();
+      if (!name) return;
+      send({ type: 'create_channel', serverId: state.currentServer, name, isVoice: state.creatingVoice });
+      $('#new-channel-name').value = '';
+    };
+  }
   
   // Invite
-  $('#copy-invite').onclick = () => {
-    navigator.clipboard.writeText($('#invite-code-display').value);
-    $('#copy-invite').textContent = '�����������!';
-    setTimeout(() => $('#copy-invite').textContent = '����������', 2000);
-  };
+  const copyInviteBtn = $('#copy-invite');
+  if (copyInviteBtn) {
+    copyInviteBtn.onclick = () => {
+      const codeDisplay = $('#invite-code-display');
+      if (codeDisplay) navigator.clipboard.writeText(codeDisplay.value);
+      copyInviteBtn.textContent = 'Скопировано!';
+      setTimeout(() => copyInviteBtn.textContent = 'Копировать', 2000);
+    };
+  }
   
   // Close modals
   $$('[data-close]').forEach(btn => {
@@ -1502,13 +1520,17 @@ function init() {
   });
   
   // Search users - send friend request by name
-  $('#search-btn').onclick = () => {
-    const name = $('#search-input').value.trim();
-    if (!name) return;
-    send({ type: 'friend_request', name });
-    $('#search-input').value = '';
-    $('#search-results').innerHTML = '<div class="empty">������ ���������!</div>';
-  };
+  const searchBtn = $('#search-btn');
+  if (searchBtn) {
+    searchBtn.onclick = () => {
+      const name = $('#search-input').value.trim();
+      if (!name) return;
+      send({ type: 'friend_request', name });
+      $('#search-input').value = '';
+      const searchResults = $('#search-results');
+      if (searchResults) searchResults.innerHTML = '<div class="empty">Запрос отправлен!</div>';
+    };
+  }
   
   // DM Call buttons
   $$('.dm-header-actions .icon-btn').forEach((btn, i) => {
