@@ -5,7 +5,7 @@ const crypto = require('crypto');
 const server = http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.writeHead(200, { 'Content-Type': 'text/plain' });
-  res.end('Ruscord Server');
+  res.end('Mrdomestos* Server');
 });
 
 const wss = new WebSocket.Server({ server });
@@ -276,8 +276,31 @@ wss.on('connection', (ws) => {
           
           if (data.name) srv.name = data.name;
           if (data.icon !== undefined) srv.icon = data.icon;
+          if (data.banner !== undefined) srv.banner = data.banner;
           
-          broadcastToServer(data.serverId, { type: 'server_updated', serverId: data.serverId, name: srv.name, icon: srv.icon });
+          broadcastToServer(data.serverId, { type: 'server_updated', serverId: data.serverId, name: srv.name, icon: srv.icon, banner: srv.banner });
+          break;
+        }
+
+        case 'delete_server': {
+          const srv = servers.get(data.serverId);
+          if (!srv || srv.ownerId !== userId) return;
+          
+          // Notify all members
+          srv.members.forEach(memberId => {
+            sendTo(memberId, { type: 'server_deleted', serverId: data.serverId });
+          });
+          
+          servers.delete(data.serverId);
+          break;
+        }
+
+        case 'delete_role': {
+          const srv = servers.get(data.serverId);
+          if (!srv || srv.ownerId !== userId) return;
+          
+          srv.roles = srv.roles.filter(r => r.id !== data.roleId);
+          broadcastToServer(data.serverId, { type: 'role_deleted', serverId: data.serverId, roleId: data.roleId });
           break;
         }
 
@@ -585,4 +608,4 @@ wss.on('connection', (ws) => {
 });
 
 const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => console.log(`Ruscord server on port ${PORT}`));
+server.listen(PORT, () => console.log(`Mrdomestos* server on port ${PORT}`));

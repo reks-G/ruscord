@@ -20,6 +20,7 @@ const state = {
   soundMuted: false,
   contextServer: null,
   contextMember: null,
+  profileUser: null,
   creatingVoice: false,
   localStream: null,
   peerConnections: new Map(),
@@ -278,10 +279,28 @@ async function handleMessage(data) {
       if (s) {
         s.name = data.name;
         s.icon = data.icon;
+        s.banner = data.banner;
         renderServers();
         if (state.currentServer === data.serverId) $('#server-name').textContent = data.name;
       }
       closeModal('server-settings-modal');
+      break;
+      
+    case 'server_deleted':
+      state.servers.delete(data.serverId);
+      renderServers();
+      if (state.currentServer === data.serverId) {
+        state.currentServer = null;
+        switchToHome();
+      }
+      break;
+      
+    case 'role_deleted':
+      const srvRole = state.servers.get(data.serverId);
+      if (srvRole) {
+        srvRole.roles = srvRole.roles.filter(r => r.id !== data.roleId);
+        loadServerRoles();
+      }
       break;
       
     case 'channel_created':
@@ -1000,6 +1019,108 @@ function hideContextMenu() {
 function openModal(id) { $(`#${id}`).classList.add('active'); }
 function closeModal(id) { $(`#${id}`).classList.remove('active'); }
 
+function showUserProfile(oderId) {
+  const user = state.users.get(oderId) || state.serverMembers.find(m => m.id === oderId);
+  if (!user) return;
+  
+  state.profileUser = oderId;
+  
+  // Set avatar
+  const avatarEl = $('#profile-avatar');
+  if (user.avatar) {
+    avatarEl.style.backgroundImage = `url(${user.avatar})`;
+    avatarEl.textContent = '';
+  } else {
+    avatarEl.style.backgroundImage = '';
+    avatarEl.textContent = getInitial(user.name);
+  }
+  
+  // Set status dot
+  const statusDot = $('#profile-status-dot');
+  statusDot.className = 'profile-status-dot ' + (user.status || 'offline');
+  
+  // Set info
+  $('#profile-name').textContent = user.name;
+  $('#profile-username').textContent = user.name.toLowerCase().replace(/\s/g, '');
+  
+  // Set joined date
+  const joinedDate = user.createdAt ? new Date(user.createdAt) : new Date();
+  $('#profile-joined').textContent = joinedDate.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' }) + ' г.';
+  
+  // Check if already friends
+  const isFriend = state.friends.has(oderId);
+  $('#profile-friend-text').textContent = isFriend ? 'В друзьях' : 'Добавить';
+  $('#profile-friend-btn').disabled = isFriend;
+  
+  openModal('profile-modal');
+}
+
+function loadServerMembers() {
+  const server = state.servers.get(state.contextServer);
+  if (!server) return;
+  
+  const members = state.serverMembers.length ? state.serverMembers : 
+    (server.members || []).map(id => {
+      if (id === state.userId) return { id, ...state.user };
+      const u = state.users.get(id);
+      return u ? { id, ...u } : null;
+    }).filter(Boolean);
+  
+  const roles = server.roles || [];
+  
+  $('#members-manage-list').innerHTML = members.map(m => `
+    <div class="member-manage-item" data-id="${m.id}">
+      <div class="avatar" ${m.avatar ? `style="background-image:url(${m.avatar})"` : ''}>${m.avatar ? '' : getInitial(m.name)}</div>
+      <div class="member-manage-info">
+        <div class="name">${escapeHtml(m.name)}</div>
+        <div class="role">${m.id === server.ownerId ? 'Владелец' : 'Участник'}</div>
+      </div>
+      <div class="member-manage-actions">
+        ${m.id !== server.ownerId && server.ownerId === state.userId ? `
+          <select class="role-select" data-member="${m.id}">
+            <option value="">Без роли</option>
+            ${roles.map(r => `<option value="${r.id}">${r.name}</option>`).join('')}
+          </select>
+          <button class="btn small danger kick-member-btn" data-id="${m.id}">Выгнать</button>
+        ` : ''}
+      </div>
+    </div>
+  `).join('') || '<div class="empty">Нет участников</div>';
+  
+  // Bind kick buttons
+  $$('.kick-member-btn').forEach(btn => {
+    btn.onclick = () => {
+      if (confirm('Выгнать пользователя?')) {
+        send({ type: 'kick_member', serverId: state.contextServer, memberId: btn.dataset.id });
+      }
+    };
+  });
+}
+
+function loadServerRoles() {
+  const server = state.servers.get(state.contextServer);
+  if (!server) return;
+  
+  const roles = server.roles || [];
+  
+  $('#roles-list').innerHTML = roles.map(r => `
+    <div class="role-item" data-id="${r.id}">
+      <div class="role-color" style="background: ${r.color}"></div>
+      <div class="role-name">${escapeHtml(r.name)}</div>
+      <div class="role-actions">
+        <button class="delete-role-btn danger" data-id="${r.id}">Удалить</button>
+      </div>
+    </div>
+  `).join('') || '<div class="empty">Нет ролей</div>';
+  
+  // Bind delete buttons
+  $$('.delete-role-btn').forEach(btn => {
+    btn.onclick = () => {
+      send({ type: 'delete_role', serverId: state.contextServer, roleId: btn.dataset.id });
+    };
+  });
+}
+
 function applyTheme(theme) {
   document.body.className = `theme-${theme}`;
   $$('.theme-btn').forEach(b => b.classList.toggle('active', b.dataset.theme === theme));
@@ -1206,8 +1327,19 @@ function init() {
       } else if (action === 'settings') {
         const server = state.servers.get(serverId);
         $('#edit-server-name').value = server?.name || '';
+        $('#preview-server-name').textContent = server?.name || 'Сервер';
         setAvatar($('#edit-server-icon'), server?.icon, server?.name);
         state.editServerIcon = server?.icon;
+        state.editServerBanner = server?.banner || '#5f27cd';
+        $('#preview-banner').style.background = `linear-gradient(135deg, ${state.editServerBanner}, ${state.editServerBanner}88)`;
+        
+        // Reset to first tab
+        $$('.server-settings-tab').forEach(t => t.classList.remove('active'));
+        $('.server-settings-tab[data-panel="profile"]').classList.add('active');
+        $$('.server-settings-panel').forEach(p => p.classList.remove('active'));
+        $('#panel-profile').classList.add('active');
+        $('.server-settings-header h2').textContent = 'Профиль сервера';
+        
         openModal('server-settings-modal');
       } else if (action === 'leave') {
         send({ type: 'leave_server', serverId });
@@ -1223,9 +1355,7 @@ function init() {
       const memberId = state.contextMember;
       
       if (action === 'profile') {
-        // Show profile modal (can be expanded later)
-        const user = state.users.get(memberId) || state.serverMembers.find(m => m.id === memberId);
-        if (user) alert(`Профиль: ${user.name}`);
+        showUserProfile(memberId);
       } else if (action === 'message') {
         openDM(memberId);
       } else if (action === 'kick') {
@@ -1234,6 +1364,54 @@ function init() {
         }
       }
       hideContextMenu();
+    };
+  });
+  
+  // Profile modal buttons
+  $('#profile-message-btn').onclick = () => {
+    if (state.profileUser) {
+      openDM(state.profileUser);
+      closeModal('profile-modal');
+    }
+  };
+  
+  $('#profile-friend-btn').onclick = () => {
+    if (state.profileUser) {
+      send({ type: 'friend_request', to: state.profileUser });
+    }
+  };
+  
+  // Server settings tabs
+  $$('.server-settings-tab[data-panel]').forEach(tab => {
+    tab.onclick = () => {
+      $$('.server-settings-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      $$('.server-settings-panel').forEach(p => p.classList.remove('active'));
+      $(`#panel-${tab.dataset.panel}`).classList.add('active');
+      
+      // Update header
+      const titles = {
+        profile: 'Профиль сервера',
+        roles: 'Роли',
+        invites: 'Приглашения',
+        bans: 'Баны',
+        members: 'Участники'
+      };
+      $('.server-settings-header h2').textContent = titles[tab.dataset.panel] || 'Настройки';
+      
+      // Load data for panel
+      if (tab.dataset.panel === 'members') loadServerMembers();
+      if (tab.dataset.panel === 'roles') loadServerRoles();
+    };
+  });
+  
+  // Banner color selection
+  $$('.banner-color').forEach(btn => {
+    btn.onclick = () => {
+      $$('.banner-color').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.editServerBanner = btn.dataset.color;
+      $('#preview-banner').style.background = btn.style.background;
     };
   });
   
@@ -1251,10 +1429,37 @@ function init() {
     reader.readAsDataURL(file);
   };
   
+  // Update preview on name change
+  $('#edit-server-name').oninput = e => {
+    $('#preview-server-name').textContent = e.target.value || 'Сервер';
+  };
+  
   $('#save-server-btn').onclick = () => {
     const name = $('#edit-server-name').value.trim();
     if (!name) return;
-    send({ type: 'update_server', serverId: state.contextServer, name, icon: state.editServerIcon });
+    send({ type: 'update_server', serverId: state.contextServer, name, icon: state.editServerIcon, banner: state.editServerBanner });
+  };
+  
+  // Delete server
+  $('#delete-server-btn').onclick = () => {
+    if (confirm('Вы уверены что хотите удалить сервер? Это действие нельзя отменить.')) {
+      send({ type: 'delete_server', serverId: state.contextServer });
+      closeModal('server-settings-modal');
+    }
+  };
+  
+  // Create role
+  $('#create-role-btn').onclick = () => {
+    const name = $('#new-role-name').value.trim();
+    const color = $('#new-role-color').value;
+    if (!name) return;
+    send({ type: 'create_role', serverId: state.contextServer, name, color });
+    $('#new-role-name').value = '';
+  };
+  
+  // Create invite from settings
+  $('#create-invite-btn').onclick = () => {
+    send({ type: 'create_invite', serverId: state.contextServer });
   };
   
   // Create channel
