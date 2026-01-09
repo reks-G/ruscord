@@ -66,7 +66,7 @@ function handleMessage(msg) {
   switch (msg.type) {
     case 'auth_success':
       state.userId = msg.userId;
-      state.username = msg.username;
+      state.username = msg.user?.name || msg.username || 'Пользователь';
       closeModal('auth-modal');
       if (Array.isArray(msg.servers)) msg.servers.forEach(s => state.servers.set(s.id, s));
       if (Array.isArray(msg.friends)) msg.friends.forEach(f => state.friends.set(f.id, f));
@@ -75,6 +75,7 @@ function handleMessage(msg) {
       renderServers();
       renderFriends();
       loadAudioDevices();
+      console.log('Logged in as:', state.userId, state.username);
       break;
       
     case 'auth_error':
@@ -894,30 +895,36 @@ function init() {
   // Add server
   const addServerBtn = $('#add-server-btn');
   if (addServerBtn) {
-    addServerBtn.onclick = () => openModal('server-modal');
+    addServerBtn.onclick = () => openModal('create-server-modal');
   }
   
   // Create server
   const createServerBtn = $('#create-server-btn');
   if (createServerBtn) {
     createServerBtn.onclick = () => {
-      const name = $('#server-name-input')?.value.trim();
+      const name = $('#new-server-name')?.value.trim();
       if (!name) return;
       send({ type: 'create_server', name });
-      $('#server-name-input').value = '';
-      closeModal('server-modal');
+      $('#new-server-name').value = '';
+      closeModal('create-server-modal');
     };
   }
   
-  // Join server
+  // Join server button in sidebar
   const joinServerBtn = $('#join-server-btn');
   if (joinServerBtn) {
-    joinServerBtn.onclick = () => {
-      const code = $('#invite-code-input')?.value.trim();
+    joinServerBtn.onclick = () => openModal('join-server-modal');
+  }
+  
+  // Use invite code
+  const useInviteBtn = $('#use-invite-btn');
+  if (useInviteBtn) {
+    useInviteBtn.onclick = () => {
+      const code = $('#invite-code')?.value.trim();
       if (!code) return;
       send({ type: 'join_server', code });
-      $('#invite-code-input').value = '';
-      closeModal('server-modal');
+      $('#invite-code').value = '';
+      closeModal('join-server-modal');
     };
   }
   
