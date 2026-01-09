@@ -857,12 +857,12 @@ function init() {
   }
   
   // Auth tabs
-  $$('.auth-tab').forEach(tab => {
+  $$('.modal-tab').forEach(tab => {
     tab.onclick = () => {
-      $$('.auth-tab').forEach(t => t.classList.remove('active'));
+      $$('.modal-tab').forEach(t => t.classList.remove('active'));
       tab.classList.add('active');
-      $$('.auth-form').forEach(f => f.classList.remove('active'));
-      $(`#${tab.dataset.form}`)?.classList.add('active');
+      $$('.auth-tab').forEach(f => f.classList.remove('active'));
+      $(`#auth-${tab.dataset.tab}`)?.classList.add('active');
     };
   });
   
