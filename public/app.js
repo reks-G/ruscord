@@ -68,10 +68,10 @@ function handleMessage(msg) {
       state.userId = msg.userId;
       state.username = msg.username;
       closeModal('auth-modal');
-      if (msg.servers) msg.servers.forEach(s => state.servers.set(s.id, s));
-      if (msg.friends) msg.friends.forEach(f => state.friends.set(f.id, f));
-      if (msg.pendingRequests) state.pendingRequests = msg.pendingRequests;
-      if (msg.dms) msg.dms.forEach(d => state.dms.set(d.oderId, d));
+      if (Array.isArray(msg.servers)) msg.servers.forEach(s => state.servers.set(s.id, s));
+      if (Array.isArray(msg.friends)) msg.friends.forEach(f => state.friends.set(f.id, f));
+      if (Array.isArray(msg.pendingRequests)) state.pendingRequests = msg.pendingRequests;
+      if (Array.isArray(msg.dms)) msg.dms.forEach(d => state.dms.set(d.oderId, d));
       renderServers();
       renderFriends();
       loadAudioDevices();
