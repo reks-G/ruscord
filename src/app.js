@@ -1,13 +1,15 @@
 console.log('NEW APP.JS LOADED!');
-var WS_URL = window.location.hostname === 'localhost' ? 'ws://localhost:3001' : 'wss://' + window.location.hostname;
+var RENDER_URL = 'wss://discord-clone-ws.onrender.com';
+var WS_URL = (window.location.protocol === 'file:' || window.location.hostname === 'localhost' || window.location.hostname === '') ? RENDER_URL : 'wss://' + window.location.hostname;
+console.log('WS_URL:', WS_URL);
 var state = {ws:null,userId:null,username:null,userAvatar:null,servers:new Map(),friends:new Map(),pendingRequests:[],currentServer:null,currentChannel:null,currentDM:null,voiceChannel:null,voiceUsers:new Map(),localStream:null,peerConnections:new Map(),newServerIcon:null,editingServerId:null,editServerIcon:null,creatingVoice:false,micTestStream:null,micTestAudio:null,micTestAnalyser:null,micTestAnimFrame:null,deletingChannelId:null,deletingChannelIsVoice:false,editingChannelId:null,editingChannelIsVoice:false,replyingTo:null,forwardingMsg:null};
 function qS(s){return document.querySelector(s);}
 function qSA(s){return document.querySelectorAll(s);}
 function escapeHtml(t){var d=document.createElement('div');d.textContent=t;return d.innerHTML;}
 function displayStatus(s){return{online:'В сети',idle:'Не активен',dnd:'Не беспокоить',invisible:'Невидимый',offline:'Не в сети'}[s]||'В сети';}
 function send(d){if(state.ws&&state.ws.readyState===1){state.ws.send(JSON.stringify(d));return true;}return false;}
-function connect(){console.log('Connecting...');state.ws=new WebSocket(WS_URL);state.ws.onopen=function(){console.log('Connected');tryAutoLogin();};state.ws.onclose=function(){setTimeout(connect,3000);};state.ws.onerror=function(e){console.error('WS error',e);};state.ws.onmessage=function(e){handleMessage(JSON.parse(e.data));};}
-function tryAutoLogin(){var sess=localStorage.getItem('session');if(sess){try{var s=JSON.parse(sess);var pwd=localStorage.getItem('lastPwd');if(s.email&&pwd){send({type:'login',email:s.email,password:pwd});}}catch(e){}}}function showView(id){qSA('.main-view').forEach(function(v){v.classList.remove('active');});var el=document.getElementById(id);if(el)el.classList.add('active');}
+function connect(){console.log('Connecting to', WS_URL);state.ws=new WebSocket(WS_URL);state.ws.onopen=function(){console.log('Connected');setTimeout(tryAutoLogin,100);};state.ws.onclose=function(){console.log('Disconnected');setTimeout(connect,3000);};state.ws.onerror=function(e){console.error('WS error',e);};state.ws.onmessage=function(e){handleMessage(JSON.parse(e.data));};}
+function tryAutoLogin(){var email=localStorage.getItem('lastEmail');var pwd=localStorage.getItem('lastPwd');console.log('tryAutoLogin',email?'has email':'no email');if(email&&pwd){send({type:'login',email:email,password:pwd});}}function showView(id){qSA('.main-view').forEach(function(v){v.classList.remove('active');});var el=document.getElementById(id);if(el)el.classList.add('active');}
 function openModal(id){var el=document.getElementById(id);if(el)el.classList.add('active');}
 function closeModal(id){var el=document.getElementById(id);if(el)el.classList.remove('active');}
 function hideContextMenu(){qSA('.context-menu').forEach(function(m){m.classList.remove('visible');});}
