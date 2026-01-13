@@ -583,6 +583,24 @@ function handleMessage(msg) {
       // Update voice users display
       if (state.currentServer === msg.serverId) {
         renderVoiceUsers(msg.channelId, msg.users);
+        
+        // Initiate calls to new users in the channel
+        if (state.voiceChannel === msg.channelId && msg.users) {
+          msg.users.forEach(function(u) {
+            if (u.oderId !== state.userId && !peerConnections.has(u.oderId)) {
+              // Small delay to avoid race conditions
+              setTimeout(function() {
+                initiateCall(u.oderId);
+              }, 500);
+            }
+          });
+        }
+      }
+    },
+    
+    voice_signal: function() {
+      if (msg.from && msg.signal) {
+        handleVoiceSignal(msg.from, msg.signal);
       }
     },
     
@@ -1231,6 +1249,17 @@ function openDM(uid) {
   renderDMMessages();
 }
 
+// ============ WEBRTC VOICE ============
+var peerConnections = new Map();
+var localStream = null;
+
+var rtcConfig = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' }
+  ]
+};
+
 function joinVoiceChannel(id) {
   if (state.voiceChannel === id) {
     leaveVoiceChannel();
@@ -1239,20 +1268,166 @@ function joinVoiceChannel(id) {
   if (state.voiceChannel) leaveVoiceChannel();
   
   state.voiceChannel = id;
-  send({ type: 'voice_join', channelId: id, serverId: state.currentServer });
-  renderChannels();
   
-  var srv = state.servers.get(state.currentServer);
-  var ch = srv ? srv.voiceChannels.find(function(c) { return c.id === id; }) : null;
-  qS('#voice-name').textContent = ch ? ch.name : 'Голосовой';
-  showView('voice-view');
+  // Get microphone access
+  navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+    .then(function(stream) {
+      localStream = stream;
+      send({ type: 'voice_join', channelId: id, serverId: state.currentServer });
+      renderChannels();
+      
+      var srv = state.servers.get(state.currentServer);
+      var ch = srv ? srv.voiceChannels.find(function(c) { return c.id === id; }) : null;
+      qS('#voice-name').textContent = ch ? ch.name : 'Голосовой';
+      showView('voice-view');
+    })
+    .catch(function(err) {
+      console.error('Microphone error:', err);
+      showNotification('Не удалось получить доступ к микрофону');
+      state.voiceChannel = null;
+    });
 }
 
 function leaveVoiceChannel() {
+  // Stop local stream
+  if (localStream) {
+    localStream.getTracks().forEach(function(track) { track.stop(); });
+    localStream = null;
+  }
+  
+  // Close all peer connections
+  peerConnections.forEach(function(pc) {
+    pc.close();
+  });
+  peerConnections.clear();
+  
   send({ type: 'voice_leave', channelId: state.voiceChannel });
   state.voiceChannel = null;
   renderChannels();
   showView('chat-view');
+}
+
+function createPeerConnection(oderId) {
+  if (peerConnections.has(oderId)) return peerConnections.get(oderId);
+  
+  var pc = new RTCPeerConnection(rtcConfig);
+  peerConnections.set(oderId, pc);
+  
+  // Add local stream tracks
+  if (localStream) {
+    localStream.getTracks().forEach(function(track) {
+      pc.addTrack(track, localStream);
+    });
+  }
+  
+  // Handle incoming tracks
+  pc.ontrack = function(event) {
+    var audio = document.createElement('audio');
+    audio.id = 'audio-' + oderId;
+    audio.srcObject = event.streams[0];
+    audio.autoplay = true;
+    document.body.appendChild(audio);
+  };
+  
+  // Handle ICE candidates
+  pc.onicecandidate = function(event) {
+    if (event.candidate) {
+      send({
+        type: 'voice_signal',
+        to: oderId,
+        signal: { type: 'candidate', candidate: event.candidate }
+      });
+    }
+  };
+  
+  pc.onconnectionstatechange = function() {
+    if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+      removePeerConnection(oderId);
+    }
+  };
+  
+  return pc;
+}
+
+function removePeerConnection(oderId) {
+  var pc = peerConnections.get(oderId);
+  if (pc) {
+    pc.close();
+    peerConnections.delete(oderId);
+  }
+  var audio = document.getElementById('audio-' + oderId);
+  if (audio) audio.remove();
+}
+
+function handleVoiceSignal(fromId, signal) {
+  var pc = peerConnections.get(fromId);
+  
+  if (signal.type === 'offer') {
+    pc = createPeerConnection(fromId);
+    pc.setRemoteDescription(new RTCSessionDescription(signal))
+      .then(function() {
+        return pc.createAnswer();
+      })
+      .then(function(answer) {
+        return pc.setLocalDescription(answer);
+      })
+      .then(function() {
+        send({
+          type: 'voice_signal',
+          to: fromId,
+          signal: pc.localDescription
+        });
+      })
+      .catch(function(err) {
+        console.error('Answer error:', err);
+      });
+  } else if (signal.type === 'answer') {
+    if (pc) {
+      pc.setRemoteDescription(new RTCSessionDescription(signal))
+        .catch(function(err) {
+          console.error('Set remote desc error:', err);
+        });
+    }
+  } else if (signal.type === 'candidate' && signal.candidate) {
+    if (pc) {
+      pc.addIceCandidate(new RTCIceCandidate(signal.candidate))
+        .catch(function(err) {
+          console.error('Add ICE candidate error:', err);
+        });
+    }
+  }
+}
+
+function initiateCall(oderId) {
+  var pc = createPeerConnection(oderId);
+  
+  pc.createOffer()
+    .then(function(offer) {
+      return pc.setLocalDescription(offer);
+    })
+    .then(function() {
+      send({
+        type: 'voice_signal',
+        to: oderId,
+        signal: pc.localDescription
+      });
+    })
+    .catch(function(err) {
+      console.error('Offer error:', err);
+    });
+}
+
+function toggleMute() {
+  if (localStream) {
+    var audioTrack = localStream.getAudioTracks()[0];
+    if (audioTrack) {
+      audioTrack.enabled = !audioTrack.enabled;
+      var muted = !audioTrack.enabled;
+      send({ type: 'voice_mute', muted: muted });
+      return muted;
+    }
+  }
+  return false;
 }
 
 
@@ -1848,8 +2023,8 @@ document.addEventListener('DOMContentLoaded', function() {
   var voiceMicBtn = qS('#voice-mic');
   if (voiceMicBtn) {
     voiceMicBtn.onclick = function() {
-      voiceMicBtn.classList.toggle('muted');
-      send({ type: 'voice_mute', muted: voiceMicBtn.classList.contains('muted') });
+      var muted = toggleMute();
+      voiceMicBtn.classList.toggle('muted', muted);
     };
   }
   
