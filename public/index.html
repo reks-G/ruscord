@@ -180,13 +180,43 @@
 
       <!-- Voice View -->
       <div class="main-view" id="voice-view">
-        <div class="voice-room">
-          <h2 id="voice-name">Голосовой канал</h2>
-          <div class="voice-users" id="voice-users"></div>
-          <div class="voice-controls">
-            <button class="voice-btn" id="voice-mic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></button>
-            <button class="voice-btn danger" id="voice-leave"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        <div class="voice-header">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+          <span id="voice-name">Голосовой канал</span>
+        </div>
+        <div class="voice-grid" id="voice-grid"></div>
+        <div class="voice-toolbar">
+          <div class="voice-toolbar-group">
+            <button class="voice-tool-btn" id="voice-mic" title="Микрофон">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+            </button>
+            <button class="voice-tool-btn dropdown" id="voice-mic-settings">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <button class="voice-tool-btn" id="voice-video" title="Видео">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+            </button>
+            <button class="voice-tool-btn dropdown" id="voice-video-settings">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
           </div>
+          <div class="voice-toolbar-group">
+            <button class="voice-tool-btn" id="voice-noise" title="Шумоподавление">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M5 3L19 21" stroke-linecap="round"/></svg>
+            </button>
+            <button class="voice-tool-btn" id="voice-screen" title="Демонстрация экрана">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            </button>
+            <button class="voice-tool-btn" id="voice-activities" title="Активности">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
+            </button>
+            <button class="voice-tool-btn" id="voice-more" title="Ещё">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+            </button>
+          </div>
+          <button class="voice-leave-btn" id="voice-leave" title="Отключиться">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>
+          </button>
         </div>
       </div>
     </main>
@@ -650,6 +680,21 @@
       <button class="emoji-btn" data-emoji="✅">✅</button>
       <button class="emoji-btn" data-emoji="❌">❌</button>
     </div>
+  </div>
+
+  <!-- Voice Settings Dropdown -->
+  <div class="voice-dropdown" id="voice-mic-dropdown">
+    <div class="voice-dropdown-header">Устройство ввода</div>
+    <select id="voice-input-device" class="voice-device-select"></select>
+    <div class="voice-dropdown-header">Громкость микрофона</div>
+    <input type="range" id="voice-input-volume" min="0" max="100" value="100" class="voice-slider">
+    <div class="voice-dropdown-header">Шумоподавление</div>
+    <label class="voice-toggle">
+      <input type="checkbox" id="voice-noise-toggle" checked>
+      <span class="voice-toggle-slider"></span>
+      <span class="voice-toggle-label">Включено</span>
+    </label>
+    <button class="btn small" id="voice-test-mic">Проверить микрофон</button>
   </div>
 
   <script src="app.js"></script>

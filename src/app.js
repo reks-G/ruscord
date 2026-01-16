@@ -25,6 +25,7 @@ var state = {
   voiceChannel: null,
   voiceUsers: new Map(),
   localStream: null,
+  noiseSuppressionEnabled: true,
   replyingTo: null,
   editingMessage: null,
   newServerIcon: null,
@@ -889,16 +890,15 @@ function renderDMList() {
 }
 
 function renderVoiceUsers(channelId, users) {
-  var vu = qS('#voice-users');
-  if (!vu || state.voiceChannel !== channelId) return;
+  var vg = qS('#voice-grid');
+  if (!vg || state.voiceChannel !== channelId) return;
   
-  vu.innerHTML = (users || []).map(function(u) {
-    return '<div class="voice-user' + (u.muted ? ' muted' : '') + '" data-user-id="' + u.id + '">' +
+  vg.innerHTML = (users || []).map(function(u) {
+    var mutedIcon = u.muted ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/></svg>' : '';
+    return '<div class="voice-tile" data-user-id="' + u.id + '">' +
       '<div class="avatar" data-user-id="' + u.id + '">' + (u.avatar ? '<img src="' + u.avatar + '">' : (u.name ? u.name.charAt(0).toUpperCase() : '?')) + '</div>' +
-      '<span>' + escapeHtml(u.name) + '</span>' +
-      (u.muted ? '<svg class="muted-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>' : '') +
-      (u.video ? '<svg class="video-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>' : '') +
-      (u.screen ? '<svg class="screen-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>' : '') +
+      '<div class="voice-tile-name">' + escapeHtml(u.name) + '</div>' +
+      (u.muted ? '<div class="voice-tile-icons">' + mutedIcon + '</div>' : '') +
       '</div>';
   }).join('');
 }
@@ -1321,7 +1321,7 @@ function checkSpeaking() {
     }
     var average = sum / dataArray.length;
     
-    var avatar = qS('.voice-user[data-user-id="' + oderId + '"] .avatar');
+    var avatar = qS('.voice-tile[data-user-id="' + oderId + '"] .avatar');
     if (avatar) {
       if (average > 20) {
         avatar.classList.add('speaking');
@@ -1347,21 +1347,33 @@ function stopSpeakingDetection() {
 
 function joinVoiceChannel(id) {
   if (state.voiceChannel === id) {
-    leaveVoiceChannel();
+    // Don't leave, just show voice view
+    showView('voice-view');
     return;
   }
   if (state.voiceChannel) leaveVoiceChannel();
   
   state.voiceChannel = id;
   
-  // Get microphone access
-  navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+  // Get microphone access with noise suppression
+  navigator.mediaDevices.getUserMedia({ 
+    audio: {
+      noiseSuppression: state.noiseSuppressionEnabled,
+      echoCancellation: true,
+      autoGainControl: true
+    }, 
+    video: false 
+  })
     .then(function(stream) {
       localStream = stream;
       
       // Setup audio analyser for local user speaking detection
       setupAudioAnalyser(stream, state.userId);
       startSpeakingDetection();
+      
+      // Update noise button state
+      var noiseBtn = qS('#voice-noise');
+      if (noiseBtn) noiseBtn.classList.toggle('active', state.noiseSuppressionEnabled);
       
       send({ type: 'voice_join', channelId: id, serverId: state.currentServer });
       renderChannels();
@@ -1554,6 +1566,57 @@ function toggleMute() {
     }
   }
   return false;
+}
+
+// Noise suppression
+function applyNoiseSuppression(stream) {
+  var audioTrack = stream.getAudioTracks()[0];
+  if (audioTrack && audioTrack.applyConstraints) {
+    audioTrack.applyConstraints({
+      noiseSuppression: state.noiseSuppressionEnabled,
+      echoCancellation: true,
+      autoGainControl: true
+    }).catch(function(err) {
+      console.log('Noise suppression not supported:', err);
+    });
+  }
+}
+
+function loadAudioDevices() {
+  navigator.mediaDevices.enumerateDevices().then(function(devices) {
+    var inputSelect = qS('#voice-input-device');
+    if (!inputSelect) return;
+    
+    inputSelect.innerHTML = '';
+    devices.forEach(function(device) {
+      if (device.kind === 'audioinput') {
+        var option = document.createElement('option');
+        option.value = device.deviceId;
+        option.textContent = device.label || 'Микрофон ' + (inputSelect.options.length + 1);
+        inputSelect.appendChild(option);
+      }
+    });
+  });
+}
+
+function testMicrophone() {
+  navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
+    var audio = document.createElement('audio');
+    audio.srcObject = stream;
+    audio.autoplay = true;
+    audio.volume = 1;
+    document.body.appendChild(audio);
+    
+    showNotification('Проверка микрофона... Говорите');
+    
+    setTimeout(function() {
+      stream.getTracks().forEach(function(t) { t.stop(); });
+      audio.remove();
+      showNotification('Проверка завершена');
+    }, 5000);
+  }).catch(function(err) {
+    showNotification('Ошибка доступа к микрофону');
+  });
 }
 
 
@@ -2153,6 +2216,60 @@ document.addEventListener('DOMContentLoaded', function() {
       voiceMicBtn.classList.toggle('muted', muted);
     };
   }
+  
+  // Voice mic settings dropdown
+  var micSettingsBtn = qS('#voice-mic-settings');
+  var micDropdown = qS('#voice-mic-dropdown');
+  if (micSettingsBtn && micDropdown) {
+    micSettingsBtn.onclick = function(e) {
+      e.stopPropagation();
+      micDropdown.classList.toggle('visible');
+      if (micDropdown.classList.contains('visible')) {
+        loadAudioDevices();
+      }
+    };
+  }
+  
+  // Noise toggle
+  var noiseToggle = qS('#voice-noise-toggle');
+  if (noiseToggle) {
+    noiseToggle.onchange = function() {
+      state.noiseSuppressionEnabled = noiseToggle.checked;
+      qS('.voice-toggle-label').textContent = noiseToggle.checked ? 'Включено' : 'Выключено';
+      if (localStream) {
+        applyNoiseSuppression(localStream);
+      }
+    };
+  }
+  
+  // Noise button in toolbar
+  var noiseBtn = qS('#voice-noise');
+  if (noiseBtn) {
+    noiseBtn.onclick = function() {
+      state.noiseSuppressionEnabled = !state.noiseSuppressionEnabled;
+      noiseBtn.classList.toggle('active', state.noiseSuppressionEnabled);
+      if (noiseToggle) noiseToggle.checked = state.noiseSuppressionEnabled;
+      if (localStream) {
+        applyNoiseSuppression(localStream);
+      }
+      showNotification(state.noiseSuppressionEnabled ? 'Шумоподавление включено' : 'Шумоподавление выключено');
+    };
+  }
+  
+  // Test mic button
+  var testMicBtn = qS('#voice-test-mic');
+  if (testMicBtn) {
+    testMicBtn.onclick = function() {
+      testMicrophone();
+    };
+  }
+  
+  // Close dropdown on outside click
+  document.addEventListener('click', function(e) {
+    if (micDropdown && !micDropdown.contains(e.target) && e.target !== micSettingsBtn) {
+      micDropdown.classList.remove('visible');
+    }
+  });
   
   // Server settings tabs
   qSA('[data-server-settings]').forEach(function(tab) {

@@ -3,8 +3,138 @@ const http = require('http');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const { Pool } = require('pg');
 
-// ============ DATA STORAGE ============
+// ============ DATABASE ============
+const DATABASE_URL = process.env.DATABASE_URL;
+let pool = null;
+let useDB = false;
+
+if (DATABASE_URL) {
+  pool = new Pool({
+    connectionString: DATABASE_URL,
+    ssl: { rejectUnauthorized: false }
+  });
+  useDB = true;
+  console.log('Using PostgreSQL database');
+  initDB();
+} else {
+  console.log('No DATABASE_URL, using JSON files');
+}
+
+async function initDB() {
+  if (!pool) return;
+  try {
+    await pool.query(\`
+      CREATE TABLE IF NOT EXISTS accounts (
+        email VARCHAR(255) PRIMARY KEY,
+        data JSONB NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS servers (
+        id VARCHAR(255) PRIMARY KEY,
+        data JSONB NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS friends (
+        id VARCHAR(255) PRIMARY KEY,
+        data JSONB NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS dm_history (
+        id VARCHAR(255) PRIMARY KEY,
+        data JSONB NOT NULL
+      );
+    \`);
+    console.log('Database tables initialized');
+    await loadFromDB();
+  } catch (e) {
+    console.error('DB init error:', e.message);
+    useDB = false;
+  }
+}
+
+async function loadFromDB() {
+  if (!pool) return;
+  try {
+    // Load accounts
+    const accRes = await pool.query('SELECT * FROM accounts');
+    accRes.rows.forEach(row => accounts.set(row.email, row.data));
+    
+    // Load servers
+    const srvRes = await pool.query('SELECT * FROM servers');
+    srvRes.rows.forEach(row => {
+      const srv = row.data;
+      servers.set(row.id, {
+        ...srv,
+        members: new Set(srv.members || []),
+        bans: new Set(srv.bans || [])
+      });
+    });
+    
+    // Load friends
+    const frRes = await pool.query('SELECT * FROM friends');
+    frRes.rows.forEach(row => {
+      const d = row.data;
+      if (d.friends) friends.set(row.id, new Set(d.friends));
+      if (d.requests) friendRequests.set(row.id, new Set(d.requests));
+      if (d.blocked) blockedUsers.set(row.id, new Set(d.blocked));
+    });
+    
+    // Load DM history
+    const dmRes = await pool.query('SELECT * FROM dm_history');
+    dmRes.rows.forEach(row => dmHistory.set(row.id, row.data));
+    
+    console.log('Loaded from DB:', accounts.size, 'accounts,', servers.size, 'servers');
+  } catch (e) {
+    console.error('DB load error:', e.message);
+  }
+}
+
+async function saveToDB() {
+  if (!pool || !useDB) return;
+  try {
+    // Save accounts
+    for (const [email, data] of accounts) {
+      await pool.query(
+        'INSERT INTO accounts (email, data) VALUES (\$1, \$2) ON CONFLICT (email) DO UPDATE SET data = \$2',
+        [email, data]
+      );
+    }
+    
+    // Save servers
+    for (const [id, srv] of servers) {
+      const data = { ...srv, members: [...srv.members], bans: [...(srv.bans || [])] };
+      await pool.query(
+        'INSERT INTO servers (id, data) VALUES (\$1, \$2) ON CONFLICT (id) DO UPDATE SET data = \$2',
+        [id, data]
+      );
+    }
+    
+    // Save friends
+    const allUserIds = new Set([...friends.keys(), ...friendRequests.keys(), ...blockedUsers.keys()]);
+    for (const userId of allUserIds) {
+      const data = {
+        friends: friends.has(userId) ? [...friends.get(userId)] : [],
+        requests: friendRequests.has(userId) ? [...friendRequests.get(userId)] : [],
+        blocked: blockedUsers.has(userId) ? [...blockedUsers.get(userId)] : []
+      };
+      await pool.query(
+        'INSERT INTO friends (id, data) VALUES (\$1, \$2) ON CONFLICT (id) DO UPDATE SET data = \$2',
+        [userId, data]
+      );
+    }
+    
+    // Save DM history
+    for (const [key, msgs] of dmHistory) {
+      await pool.query(
+        'INSERT INTO dm_history (id, data) VALUES (\$1, \$2) ON CONFLICT (id) DO UPDATE SET data = \$2',
+        [key, msgs]
+      );
+    }
+  } catch (e) {
+    console.error('DB save error:', e.message);
+  }
+}
+
+// ============ JSON FALLBACK ============
 const DATA_DIR = path.join(__dirname, 'data');
 const ACCOUNTS_FILE = path.join(DATA_DIR, 'accounts.json');
 const SERVERS_FILE = path.join(DATA_DIR, 'servers.json');
@@ -27,7 +157,7 @@ function saveJSON(file, data) {
 }
 
 // ============ STATE ============
-const accounts = new Map(Object.entries(loadJSON(ACCOUNTS_FILE)));
+const accounts = new Map(useDB ? [] : Object.entries(loadJSON(ACCOUNTS_FILE)));
 const servers = new Map();
 const friends = new Map();
 const friendRequests = new Map();
@@ -36,44 +166,47 @@ const onlineUsers = new Map();
 const voiceState = new Map();
 const invites = new Map();
 const blockedUsers = new Map();
-const userSettings = new Map();
 
-// Load servers
-Object.entries(loadJSON(SERVERS_FILE)).forEach(([id, srv]) => {
-  servers.set(id, {
-    ...srv,
-    members: new Set(srv.members || []),
-    roles: srv.roles || [
-      { id: 'owner', name: 'Владелец', color: '#f1c40f', position: 100, permissions: ['all'] },
-      { id: 'admin', name: 'Админ', color: '#e74c3c', position: 50, permissions: ['manage_channels', 'kick', 'ban', 'manage_messages'] },
-      { id: 'moderator', name: 'Модератор', color: '#3498db', position: 25, permissions: ['manage_messages', 'kick'] },
-      { id: 'default', name: 'Участник', color: '#99aab5', position: 0, permissions: ['send_messages', 'read_messages'] }
-    ],
-    memberRoles: srv.memberRoles || {},
-    bans: new Set(srv.bans || [])
+// Load from JSON if no DB
+if (!useDB) {
+  Object.entries(loadJSON(SERVERS_FILE)).forEach(([id, srv]) => {
+    servers.set(id, {
+      ...srv,
+      members: new Set(srv.members || []),
+      roles: srv.roles || [
+        { id: 'owner', name: 'Владелец', color: '#f1c40f', position: 100, permissions: ['all'] },
+        { id: 'admin', name: 'Админ', color: '#e74c3c', position: 50, permissions: ['manage_channels', 'kick', 'ban', 'manage_messages'] },
+        { id: 'moderator', name: 'Модератор', color: '#3498db', position: 25, permissions: ['manage_messages', 'kick'] },
+        { id: 'default', name: 'Участник', color: '#99aab5', position: 0, permissions: ['send_messages', 'read_messages'] }
+      ],
+      memberRoles: srv.memberRoles || {},
+      bans: new Set(srv.bans || [])
+    });
   });
-});
 
+  const friendsData = loadJSON(FRIENDS_FILE, { friends: {}, requests: {}, blocked: {} });
+  Object.entries(friendsData.friends || {}).forEach(([id, arr]) => {
+    friends.set(id, new Set(arr));
+  });
+  Object.entries(friendsData.requests || {}).forEach(([id, arr]) => {
+    friendRequests.set(id, new Set(arr));
+  });
+  Object.entries(friendsData.blocked || {}).forEach(([id, arr]) => {
+    blockedUsers.set(id, new Set(arr));
+  });
 
-// Load friends
-const friendsData = loadJSON(FRIENDS_FILE, { friends: {}, requests: {}, blocked: {} });
-Object.entries(friendsData.friends || {}).forEach(([id, arr]) => {
-  friends.set(id, new Set(arr));
-});
-Object.entries(friendsData.requests || {}).forEach(([id, arr]) => {
-  friendRequests.set(id, new Set(arr));
-});
-Object.entries(friendsData.blocked || {}).forEach(([id, arr]) => {
-  blockedUsers.set(id, new Set(arr));
-});
-
-// Load DM history
-Object.entries(loadJSON(DM_FILE)).forEach(([key, msgs]) => {
-  dmHistory.set(key, msgs);
-});
+  Object.entries(loadJSON(DM_FILE)).forEach(([key, msgs]) => {
+    dmHistory.set(key, msgs);
+  });
+}
 
 // ============ SAVE ============
 function saveAll() {
+  if (useDB) {
+    saveToDB();
+    return;
+  }
+  
   const accObj = {};
   accounts.forEach((v, k) => { accObj[k] = v; });
   saveJSON(ACCOUNTS_FILE, accObj);
