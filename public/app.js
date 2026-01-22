@@ -273,7 +273,15 @@ function handleMessage(msg) {
       if (srv) {
         var channels = msg.isVoice ? srv.voiceChannels : srv.channels;
         var ch = channels.find(function(c) { return c.id === msg.channelId; });
-        if (ch) ch.name = msg.name;
+        if (ch) {
+          ch.name = msg.name;
+          
+          // Update voice channel name if currently in this channel
+          if (msg.isVoice && state.voiceChannel === msg.channelId) {
+            var voiceNameEl = qS('#voice-name');
+            if (voiceNameEl) voiceNameEl.textContent = msg.name;
+          }
+        }
         if (state.currentServer === msg.serverId) renderChannels();
       }
     },
