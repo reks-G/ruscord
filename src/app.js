@@ -1324,13 +1324,21 @@ function checkSpeaking() {
     }
     var average = sum / dataArray.length;
     
-    var avatar = qS('.voice-tile[data-user-id="' + oderId + '"] .avatar');
+    // Try both selectors for compatibility
+    var avatar = qS('.voice-user[data-user-id="' + oderId + '"] .avatar');
+    if (!avatar) {
+      avatar = qS('.voice-tile[data-user-id="' + oderId + '"] .avatar');
+    }
+    
     if (avatar) {
       if (average > 20) {
         avatar.classList.add('speaking');
+        console.log('Speaking detected for user:', oderId, 'level:', average);
       } else {
         avatar.classList.remove('speaking');
       }
+    } else {
+      console.log('Avatar not found for user:', oderId);
     }
   });
 }
