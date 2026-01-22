@@ -2413,6 +2413,19 @@ document.addEventListener('DOMContentLoaded', function() {
     voiceMicBtn.onclick = function() {
       var muted = toggleMute();
       voiceMicBtn.classList.toggle('muted', muted);
+      
+      // Toggle icons
+      var micOn = voiceMicBtn.querySelector('.mic-on');
+      var micOff = voiceMicBtn.querySelector('.mic-off');
+      if (micOn && micOff) {
+        if (muted) {
+          micOn.style.display = 'none';
+          micOff.style.display = 'block';
+        } else {
+          micOn.style.display = 'block';
+          micOff.style.display = 'none';
+        }
+      }
     };
   }
   
