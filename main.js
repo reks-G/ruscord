@@ -98,6 +98,16 @@ ipcMain.on('window-close', () => mainWindow.hide());
 // Открытие ссылок в браузере
 ipcMain.on('open-external', (_, url) => shell.openExternal(url));
 
+// Screen share support
+ipcMain.handle('get-screen-sources', async () => {
+  const { desktopCapturer } = require('electron');
+  const sources = await desktopCapturer.getSources({ 
+    types: ['window', 'screen'],
+    thumbnailSize: { width: 150, height: 150 }
+  });
+  return sources;
+});
+
 app.whenReady().then(() => {
   startServer();
   createWindow();

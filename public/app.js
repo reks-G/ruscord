@@ -1684,7 +1684,57 @@ function toggleScreenShare() {
     showNotification('Демонстрация экрана остановлена');
   } else {
     // Start screen sharing
-    if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
+    // Check if running in Electron
+    if (window.electronAPI && window.electronAPI.getScreenSources) {
+      // Electron screen share
+      window.electronAPI.getScreenSources().then(function(sources) {
+        if (sources.length === 0) {
+          showNotification('Нет доступных источников для демонстрации');
+          return;
+        }
+        
+        // Use first screen source (can be improved with selection dialog)
+        var source = sources[0];
+        
+        navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: {
+            mandatory: {
+              chromeMediaSource: 'desktop',
+              chromeMediaSourceId: source.id
+            }
+          }
+        }).then(function(screenStream) {
+          state.screenSharing = true;
+          state.screenStream = screenStream;
+          
+          var voiceScreenBtn = qS('#voice-screen');
+          if (voiceScreenBtn) voiceScreenBtn.classList.add('active');
+          
+          // Add screen track to all peer connections
+          var videoTrack = screenStream.getVideoTracks()[0];
+          peerConnections.forEach(function(pc, oderId) {
+            pc.addTrack(videoTrack, screenStream);
+            console.log('Added screen track to peer:', oderId);
+          });
+          
+          send({ type: 'voice_screen', screen: true });
+          showNotification('Демонстрация экрана запущена');
+          
+          // Stop sharing when track ends
+          videoTrack.onended = function() {
+            toggleScreenShare();
+          };
+        }).catch(function(err) {
+          console.error('Screen share error:', err);
+          showNotification('Не удалось запустить демонстрацию экрана');
+        });
+      }).catch(function(err) {
+        console.error('Get sources error:', err);
+        showNotification('Ошибка получения источников экрана');
+      });
+    } else if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
+      // Browser screen share
       navigator.mediaDevices.getDisplayMedia({ 
         video: { 
           cursor: 'always',
