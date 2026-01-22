@@ -1636,7 +1636,62 @@ function loadAudioDevices() {
         inputSelect.appendChild(option);
       }
     });
+    
+    // Add change handler
+    inputSelect.onchange = function() {
+      if (localStream) {
+        // Restart stream with new device
+        var constraints = {
+          audio: { deviceId: inputSelect.value ? { exact: inputSelect.value } : undefined }
+        };
+        navigator.mediaDevices.getUserMedia(constraints).then(function(newStream) {
+          localStream.getTracks().forEach(function(track) { track.stop(); });
+          localStream = newStream;
+          
+          // Update peer connections with new stream
+          peerConnections.forEach(function(pc) {
+            var sender = pc.getSenders().find(function(s) { return s.track && s.track.kind === 'audio'; });
+            if (sender) {
+              sender.replaceTrack(newStream.getAudioTracks()[0]);
+            }
+          });
+          
+          setupAudioAnalyser(newStream, state.userId);
+          showNotification('Устройство ввода изменено');
+        }).catch(function(err) {
+          console.error('Device change error:', err);
+          showNotification('Ошибка смены устройства');
+        });
+      }
+    };
   });
+  
+  // Start volume monitoring
+  startVolumeMonitoring();
+}
+
+function startVolumeMonitoring() {
+  var volumeBar = qS('#voice-volume-bar');
+  if (!volumeBar) return;
+  
+  setInterval(function() {
+    if (localStream && audioAnalysers.has(state.userId)) {
+      var analyser = audioAnalysers.get(state.userId);
+      var dataArray = new Uint8Array(analyser.frequencyBinCount);
+      analyser.getByteFrequencyData(dataArray);
+      
+      var sum = 0;
+      for (var i = 0; i < dataArray.length; i++) {
+        sum += dataArray[i];
+      }
+      var average = sum / dataArray.length;
+      var percent = Math.min(100, (average / 128) * 100);
+      
+      volumeBar.style.width = percent + '%';
+    } else {
+      volumeBar.style.width = '0%';
+    }
+  }, 50);
 }
 
 function testMicrophone() {
@@ -1726,37 +1781,6 @@ function hideReplyBar() {
 }
 
 // ============ AUDIO ============
-function loadAudioDevices() {
-  navigator.mediaDevices.enumerateDevices().then(function(devs) {
-    var mics = devs.filter(function(d) { return d.kind === 'audioinput'; });
-    var spks = devs.filter(function(d) { return d.kind === 'audiooutput'; });
-    
-    var mo = qS('#mic-select-options');
-    var mt = qS('#mic-select-trigger span');
-    if (mo && mics.length) {
-      var mh = '';
-      mics.forEach(function(mic, i) {
-        mh += '<div class="custom-select-option' + (i === 0 ? ' selected' : '') + '" data-value="' + mic.deviceId + '">' + (mic.label || 'Микрофон ' + (i + 1)) + '</div>';
-      });
-      mo.innerHTML = mh;
-      if (mt) mt.textContent = mics[0].label || 'Микрофон 1';
-    }
-    
-    var so = qS('#speaker-select-options');
-    var st = qS('#speaker-select-trigger span');
-    if (so && spks.length) {
-      var sh = '';
-      spks.forEach(function(spk, i) {
-        sh += '<div class="custom-select-option' + (i === 0 ? ' selected' : '') + '" data-value="' + spk.deviceId + '">' + (spk.label || 'Динамик ' + (i + 1)) + '</div>';
-      });
-      so.innerHTML = sh;
-      if (st) st.textContent = spks[0].label || 'Динамик 1';
-    }
-  }).catch(function(e) {
-    console.error('Audio devices error:', e);
-  });
-}
-
 // ============ SIGN OUT ============
 function signOut() {
   localStorage.removeItem('session');
