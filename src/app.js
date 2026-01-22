@@ -892,15 +892,16 @@ function renderDMList() {
 }
 
 function renderVoiceUsers(channelId, users) {
-  var vg = qS('#voice-grid');
-  if (!vg || state.voiceChannel !== channelId) return;
+  var vu = qS('#voice-users');
+  if (!vu || state.voiceChannel !== channelId) return;
   
-  vg.innerHTML = (users || []).map(function(u) {
-    var mutedIcon = u.muted ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/></svg>' : '';
-    return '<div class="voice-tile" data-user-id="' + u.id + '">' +
+  vu.innerHTML = (users || []).map(function(u) {
+    return '<div class="voice-user" data-user-id="' + u.id + '">' +
       '<div class="avatar" data-user-id="' + u.id + '">' + (u.avatar ? '<img src="' + u.avatar + '">' : (u.name ? u.name.charAt(0).toUpperCase() : '?')) + '</div>' +
-      '<div class="voice-tile-name">' + escapeHtml(u.name) + '</div>' +
-      (u.muted ? '<div class="voice-tile-icons">' + mutedIcon + '</div>' : '') +
+      '<span>' + escapeHtml(u.name) + '</span>' +
+      (u.muted ? '<svg class="muted-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>' : '') +
+      (u.video ? '<svg class="video-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>' : '') +
+      (u.screen ? '<svg class="screen-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>' : '') +
       '</div>';
   }).join('');
 }
