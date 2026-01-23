@@ -1630,66 +1630,88 @@ function createPeerConnection(oderId) {
       container.appendChild(resizeHandle);
       document.body.appendChild(container);
       
-      // Make draggable and resizable
-      var isDragging = false;
-      var isResizing = false;
-      var currentX;
-      var currentY;
-      var initialX;
-      var initialY;
-      var startWidth;
-      var startHeight;
-      var startX;
-      var startY;
-      
-      header.addEventListener('mousedown', function(e) {
-        if (e.target === header || e.target === title) {
-          isDragging = true;
-          initialX = e.clientX - container.offsetLeft;
-          initialY = e.clientY - container.offsetTop;
-          e.preventDefault();
-        }
-      });
-      
-      resizeHandle.addEventListener('mousedown', function(e) {
-        isResizing = true;
-        startWidth = container.offsetWidth;
-        startHeight = container.offsetHeight;
-        startX = e.clientX;
-        startY = e.clientY;
-        e.preventDefault();
-        e.stopPropagation();
-      });
-      
-      var handleMouseMove = function(e) {
-        if (isDragging) {
-          e.preventDefault();
-          currentX = e.clientX - initialX;
-          currentY = e.clientY - initialY;
-          container.style.left = currentX + 'px';
-          container.style.top = currentY + 'px';
-          container.style.transform = 'none';
-        } else if (isResizing) {
-          e.preventDefault();
-          var newWidth = startWidth + (e.clientX - startX);
-          var newHeight = startHeight + (e.clientY - startY);
+      // Dragging functionality
+      (function() {
+        var isDragging = false;
+        var offsetX = 0;
+        var offsetY = 0;
+        
+        header.addEventListener('mousedown', function(e) {
+          // Don't drag if clicking buttons
+          if (e.target === fullscreenBtn || e.target === closeBtn) {
+            console.log('Clicked button, not dragging');
+            return;
+          }
           
-          if (newWidth >= 400) {
-            container.style.width = newWidth + 'px';
+          console.log('Drag started');
+          isDragging = true;
+          offsetX = e.clientX - container.getBoundingClientRect().left;
+          offsetY = e.clientY - container.getBoundingClientRect().top;
+          
+          header.style.cursor = 'grabbing';
+          e.preventDefault();
+        });
+        
+        document.addEventListener('mousemove', function(e) {
+          if (!isDragging) return;
+          
+          var x = e.clientX - offsetX;
+          var y = e.clientY - offsetY;
+          
+          container.style.left = x + 'px';
+          container.style.top = y + 'px';
+        });
+        
+        document.addEventListener('mouseup', function() {
+          if (isDragging) {
+            console.log('Drag ended');
+            isDragging = false;
+            header.style.cursor = 'move';
           }
-          if (newHeight >= 300) {
-            container.style.height = newHeight + 'px';
+        });
+      })();
+      
+      // Resizing functionality
+      (function() {
+        var isResizing = false;
+        var startX = 0;
+        var startY = 0;
+        var startWidth = 0;
+        var startHeight = 0;
+        
+        resizeHandle.addEventListener('mousedown', function(e) {
+          console.log('Resize started');
+          isResizing = true;
+          startX = e.clientX;
+          startY = e.clientY;
+          startWidth = parseInt(container.style.width, 10);
+          startHeight = parseInt(container.style.height, 10);
+          
+          e.preventDefault();
+          e.stopPropagation();
+        });
+        
+        document.addEventListener('mousemove', function(e) {
+          if (!isResizing) return;
+          
+          var width = startWidth + (e.clientX - startX);
+          var height = startHeight + (e.clientY - startY);
+          
+          if (width >= 400) {
+            container.style.width = width + 'px';
           }
-        }
-      };
-      
-      var handleMouseUp = function() {
-        isDragging = false;
-        isResizing = false;
-      };
-      
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
+          if (height >= 300) {
+            container.style.height = height + 'px';
+          }
+        });
+        
+        document.addEventListener('mouseup', function() {
+          if (isResizing) {
+            console.log('Resize ended');
+            isResizing = false;
+          }
+        });
+      })();
       
       // Fullscreen toggle
       var isFullscreen = false;
