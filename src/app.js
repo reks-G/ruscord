@@ -1417,8 +1417,10 @@ function leaveVoiceChannel() {
   });
   
   // Remove local preview
-  var localPreview = document.getElementById('local-screen-preview');
-  if (localPreview) localPreview.remove();
+  var localPreview = document.getElementById('local-screen-preview-container');
+  if (localPreview) {
+    localPreview.remove();
+  }
   
   // Stop screen sharing if active
   if (state.screenSharing) {
@@ -1515,10 +1517,10 @@ function createPeerConnection(oderId) {
       container.id = 'screen-share-container-' + oderId;
       container.className = 'screen-share-window';
       container.style.position = 'fixed';
-      container.style.top = '50px';
-      container.style.left = '50px';
-      container.style.width = '800px';
-      container.style.height = '600px';
+      container.style.bottom = '100px';
+      container.style.right = '20px';
+      container.style.width = '400px';
+      container.style.height = '300px';
       container.style.zIndex = '1000';
       container.style.background = '#000';
       container.style.border = '2px solid var(--accent)';
@@ -1527,8 +1529,8 @@ function createPeerConnection(oderId) {
       container.style.display = 'flex';
       container.style.flexDirection = 'column';
       container.style.overflow = 'hidden';
-      container.style.minWidth = '400px';
-      container.style.minHeight = '300px';
+      container.style.minWidth = '300px';
+      container.style.minHeight = '200px';
       
       // Create header bar
       var header = document.createElement('div');
@@ -1630,88 +1632,96 @@ function createPeerConnection(oderId) {
       container.appendChild(resizeHandle);
       document.body.appendChild(container);
       
-      // Dragging functionality
-      (function() {
-        var isDragging = false;
-        var offsetX = 0;
-        var offsetY = 0;
-        
-        header.addEventListener('mousedown', function(e) {
-          // Don't drag if clicking buttons
-          if (e.target === fullscreenBtn || e.target === closeBtn) {
-            console.log('Clicked button, not dragging');
-            return;
-          }
-          
-          console.log('Drag started');
-          isDragging = true;
-          offsetX = e.clientX - container.getBoundingClientRect().left;
-          offsetY = e.clientY - container.getBoundingClientRect().top;
-          
-          header.style.cursor = 'grabbing';
-          e.preventDefault();
-        });
-        
-        document.addEventListener('mousemove', function(e) {
-          if (!isDragging) return;
-          
-          var x = e.clientX - offsetX;
-          var y = e.clientY - offsetY;
-          
-          container.style.left = x + 'px';
-          container.style.top = y + 'px';
-        });
-        
-        document.addEventListener('mouseup', function() {
-          if (isDragging) {
-            console.log('Drag ended');
-            isDragging = false;
-            header.style.cursor = 'move';
-          }
-        });
-      })();
+      // Dragging and resizing state
+      var dragState = {
+        isDragging: false,
+        isResizing: false,
+        startX: 0,
+        startY: 0,
+        startLeft: 0,
+        startTop: 0,
+        startWidth: 0,
+        startHeight: 0
+      };
       
-      // Resizing functionality
-      (function() {
-        var isResizing = false;
-        var startX = 0;
-        var startY = 0;
-        var startWidth = 0;
-        var startHeight = 0;
+      // Mouse down on header - start dragging
+      header.onmousedown = function(e) {
+        // Don't drag if clicking buttons
+        if (e.target === fullscreenBtn || e.target === closeBtn) {
+          return;
+        }
         
-        resizeHandle.addEventListener('mousedown', function(e) {
-          console.log('Resize started');
-          isResizing = true;
-          startX = e.clientX;
-          startY = e.clientY;
-          startWidth = parseInt(container.style.width, 10);
-          startHeight = parseInt(container.style.height, 10);
+        dragState.isDragging = true;
+        dragState.startX = e.clientX;
+        dragState.startY = e.clientY;
+        dragState.startLeft = container.offsetLeft;
+        dragState.startTop = container.offsetTop;
+        
+        header.style.cursor = 'grabbing';
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      };
+      
+      // Mouse down on resize handle - start resizing
+      resizeHandle.onmousedown = function(e) {
+        dragState.isResizing = true;
+        dragState.startX = e.clientX;
+        dragState.startY = e.clientY;
+        dragState.startWidth = container.offsetWidth;
+        dragState.startHeight = container.offsetHeight;
+        
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      };
+      
+      // Global mouse move
+      var globalMouseMove = function(e) {
+        if (dragState.isDragging) {
+          var deltaX = e.clientX - dragState.startX;
+          var deltaY = e.clientY - dragState.startY;
+          
+          container.style.left = (dragState.startLeft + deltaX) + 'px';
+          container.style.top = (dragState.startTop + deltaY) + 'px';
           
           e.preventDefault();
-          e.stopPropagation();
-        });
+          return false;
+        }
         
-        document.addEventListener('mousemove', function(e) {
-          if (!isResizing) return;
+        if (dragState.isResizing) {
+          var deltaX = e.clientX - dragState.startX;
+          var deltaY = e.clientY - dragState.startY;
           
-          var width = startWidth + (e.clientX - startX);
-          var height = startHeight + (e.clientY - startY);
+          var newWidth = dragState.startWidth + deltaX;
+          var newHeight = dragState.startHeight + deltaY;
           
-          if (width >= 400) {
-            container.style.width = width + 'px';
+          if (newWidth >= 400) {
+            container.style.width = newWidth + 'px';
           }
-          if (height >= 300) {
-            container.style.height = height + 'px';
+          if (newHeight >= 300) {
+            container.style.height = newHeight + 'px';
           }
-        });
-        
-        document.addEventListener('mouseup', function() {
-          if (isResizing) {
-            console.log('Resize ended');
-            isResizing = false;
-          }
-        });
-      })();
+          
+          e.preventDefault();
+          return false;
+        }
+      };
+      
+      // Global mouse up
+      var globalMouseUp = function(e) {
+        if (dragState.isDragging) {
+          dragState.isDragging = false;
+          header.style.cursor = 'move';
+        }
+        if (dragState.isResizing) {
+          dragState.isResizing = false;
+        }
+      };
+      
+      // Add global listeners
+      window.addEventListener('mousemove', globalMouseMove, true);
+      window.addEventListener('mouseup', globalMouseUp, true);
       
       // Fullscreen toggle
       var isFullscreen = false;
@@ -1876,8 +1886,10 @@ function toggleScreenShare() {
     }
     
     // Remove local preview
-    var localPreview = document.getElementById('local-screen-preview');
-    if (localPreview) localPreview.remove();
+    var localPreview = document.getElementById('local-screen-preview-container');
+    if (localPreview) {
+      localPreview.remove();
+    }
     
     // Remove screen track from all peer connections
     peerConnections.forEach(function(pc) {
@@ -2015,48 +2027,269 @@ function toggleScreenShare() {
 }
 
 function showLocalScreenPreview(stream) {
-  // Remove existing preview
-  var existingPreview = document.getElementById('local-screen-preview');
-  if (existingPreview) existingPreview.remove();
+  // Remove existing preview window
+  var existingContainer = document.getElementById('local-screen-preview-container');
+  if (existingContainer) {
+    existingContainer.remove();
+  }
   
-  // Create video element for preview
+  // Create container
+  var container = document.createElement('div');
+  container.id = 'local-screen-preview-container';
+  container.className = 'screen-share-window';
+  container.style.position = 'fixed';
+  container.style.bottom = '100px';
+  container.style.right = '20px';
+  container.style.width = '400px';
+  container.style.height = '300px';
+  container.style.zIndex = '1000';
+  container.style.background = '#000';
+  container.style.border = '2px solid var(--accent)';
+  container.style.borderRadius = '8px';
+  container.style.boxShadow = '0 8px 32px rgba(0,0,0,0.5)';
+  container.style.display = 'flex';
+  container.style.flexDirection = 'column';
+  container.style.overflow = 'hidden';
+  container.style.minWidth = '300px';
+  container.style.minHeight = '200px';
+  
+  // Create header bar
+  var header = document.createElement('div');
+  header.style.background = 'var(--bg-secondary)';
+  header.style.padding = '8px 12px';
+  header.style.display = 'flex';
+  header.style.alignItems = 'center';
+  header.style.justifyContent = 'space-between';
+  header.style.cursor = 'move';
+  header.style.userSelect = 'none';
+  
+  var title = document.createElement('span');
+  title.textContent = 'Ваш экран';
+  title.style.color = 'var(--text-primary)';
+  title.style.fontSize = '14px';
+  title.style.fontWeight = '500';
+  
+  var controls = document.createElement('div');
+  controls.style.display = 'flex';
+  controls.style.gap = '8px';
+  
+  // Fullscreen button
+  var fullscreenBtn = document.createElement('button');
+  fullscreenBtn.innerHTML = '⛶';
+  fullscreenBtn.style.width = '24px';
+  fullscreenBtn.style.height = '24px';
+  fullscreenBtn.style.border = 'none';
+  fullscreenBtn.style.borderRadius = '4px';
+  fullscreenBtn.style.background = 'var(--bg-tertiary)';
+  fullscreenBtn.style.color = 'var(--text-primary)';
+  fullscreenBtn.style.fontSize = '16px';
+  fullscreenBtn.style.cursor = 'pointer';
+  fullscreenBtn.style.display = 'flex';
+  fullscreenBtn.style.alignItems = 'center';
+  fullscreenBtn.style.justifyContent = 'center';
+  fullscreenBtn.title = 'Полный экран';
+  
+  // Close button
+  var closeBtn = document.createElement('button');
+  closeBtn.innerHTML = '✕';
+  closeBtn.style.width = '24px';
+  closeBtn.style.height = '24px';
+  closeBtn.style.border = 'none';
+  closeBtn.style.borderRadius = '4px';
+  closeBtn.style.background = 'var(--danger)';
+  closeBtn.style.color = 'white';
+  closeBtn.style.fontSize = '16px';
+  closeBtn.style.cursor = 'pointer';
+  closeBtn.style.display = 'flex';
+  closeBtn.style.alignItems = 'center';
+  closeBtn.style.justifyContent = 'center';
+  closeBtn.title = 'Закрыть';
+  
+  controls.appendChild(fullscreenBtn);
+  controls.appendChild(closeBtn);
+  header.appendChild(title);
+  header.appendChild(controls);
+  
+  // Create video element
   var video = document.createElement('video');
   video.id = 'local-screen-preview';
   video.srcObject = stream;
   video.autoplay = true;
   video.muted = true;
   video.playsInline = true;
-  video.style.position = 'fixed';
-  video.style.bottom = '100px';
-  video.style.right = '20px';
-  video.style.width = '300px';
-  video.style.height = 'auto';
-  video.style.zIndex = '1000';
-  video.style.border = '2px solid var(--accent)';
-  video.style.borderRadius = '8px';
-  video.style.boxShadow = '0 4px 16px rgba(0,0,0,0.3)';
+  video.style.width = '100%';
+  video.style.height = '100%';
+  video.style.objectFit = 'contain';
   video.style.background = '#000';
+  video.style.pointerEvents = 'none';
+  video.style.flex = '1';
   
-  // Add label
-  var label = document.createElement('div');
-  label.textContent = 'Ваш экран';
-  label.style.position = 'fixed';
-  label.style.bottom = '100px';
-  label.style.right = '20px';
-  label.style.background = 'var(--accent)';
-  label.style.color = 'white';
-  label.style.padding = '4px 8px';
-  label.style.borderRadius = '4px 4px 0 0';
-  label.style.fontSize = '12px';
-  label.style.zIndex = '1001';
-  label.style.transform = 'translateY(-100%)';
+  // Create resize handle
+  var resizeHandle = document.createElement('div');
+  resizeHandle.style.position = 'absolute';
+  resizeHandle.style.bottom = '0';
+  resizeHandle.style.right = '0';
+  resizeHandle.style.width = '30px';
+  resizeHandle.style.height = '30px';
+  resizeHandle.style.cursor = 'nwse-resize';
+  resizeHandle.style.background = 'transparent';
+  resizeHandle.style.zIndex = '10';
+  resizeHandle.title = 'Изменить размер';
   
-  document.body.appendChild(video);
-  document.body.appendChild(label);
+  // Add visual indicator
+  var resizeIcon = document.createElement('div');
+  resizeIcon.style.position = 'absolute';
+  resizeIcon.style.bottom = '2px';
+  resizeIcon.style.right = '2px';
+  resizeIcon.style.width = '0';
+  resizeIcon.style.height = '0';
+  resizeIcon.style.borderStyle = 'solid';
+  resizeIcon.style.borderWidth = '0 0 15px 15px';
+  resizeIcon.style.borderColor = 'transparent transparent var(--accent) transparent';
+  resizeIcon.style.pointerEvents = 'none';
+  resizeHandle.appendChild(resizeIcon);
   
-  video.play().catch(function(err) {
-    console.error('Preview play error:', err);
-  });
+  container.appendChild(header);
+  container.appendChild(video);
+  container.appendChild(resizeHandle);
+  document.body.appendChild(container);
+  
+  // Dragging and resizing state
+  var dragState = {
+    isDragging: false,
+    isResizing: false,
+    startX: 0,
+    startY: 0,
+    startLeft: 0,
+    startTop: 0,
+    startWidth: 0,
+    startHeight: 0
+  };
+  
+  // Mouse down on header - start dragging
+  header.onmousedown = function(e) {
+    // Don't drag if clicking buttons
+    if (e.target === fullscreenBtn || e.target === closeBtn) {
+      return;
+    }
+    
+    dragState.isDragging = true;
+    dragState.startX = e.clientX;
+    dragState.startY = e.clientY;
+    dragState.startLeft = container.offsetLeft;
+    dragState.startTop = container.offsetTop;
+    
+    header.style.cursor = 'grabbing';
+    e.preventDefault();
+    e.stopPropagation();
+    return false;
+  };
+  
+  // Mouse down on resize handle - start resizing
+  resizeHandle.onmousedown = function(e) {
+    dragState.isResizing = true;
+    dragState.startX = e.clientX;
+    dragState.startY = e.clientY;
+    dragState.startWidth = container.offsetWidth;
+    dragState.startHeight = container.offsetHeight;
+    
+    e.preventDefault();
+    e.stopPropagation();
+    return false;
+  };
+  
+  // Global mouse move
+  var globalMouseMove = function(e) {
+    if (dragState.isDragging) {
+      var deltaX = e.clientX - dragState.startX;
+      var deltaY = e.clientY - dragState.startY;
+      
+      container.style.left = (dragState.startLeft + deltaX) + 'px';
+      container.style.top = (dragState.startTop + deltaY) + 'px';
+      
+      e.preventDefault();
+      return false;
+    }
+    
+    if (dragState.isResizing) {
+      var deltaX = e.clientX - dragState.startX;
+      var deltaY = e.clientY - dragState.startY;
+      
+      var newWidth = dragState.startWidth + deltaX;
+      var newHeight = dragState.startHeight + deltaY;
+      
+      if (newWidth >= 400) {
+        container.style.width = newWidth + 'px';
+      }
+      if (newHeight >= 300) {
+        container.style.height = newHeight + 'px';
+      }
+      
+      e.preventDefault();
+      return false;
+    }
+  };
+  
+  // Global mouse up
+  var globalMouseUp = function(e) {
+    if (dragState.isDragging) {
+      dragState.isDragging = false;
+      header.style.cursor = 'move';
+    }
+    if (dragState.isResizing) {
+      dragState.isResizing = false;
+    }
+  };
+  
+  // Add global listeners
+  window.addEventListener('mousemove', globalMouseMove, true);
+  window.addEventListener('mouseup', globalMouseUp, true);
+  
+  // Fullscreen toggle
+  var isFullscreen = false;
+  var savedStyle = {};
+  fullscreenBtn.onclick = function() {
+    if (!isFullscreen) {
+      // Save current style
+      savedStyle = {
+        top: container.style.top,
+        left: container.style.left,
+        width: container.style.width,
+        height: container.style.height
+      };
+      
+      // Go fullscreen
+      container.style.top = '0';
+      container.style.left = '0';
+      container.style.width = '100%';
+      container.style.height = '100%';
+      container.style.borderRadius = '0';
+      isFullscreen = true;
+    } else {
+      // Restore
+      container.style.top = savedStyle.top;
+      container.style.left = savedStyle.left;
+      container.style.width = savedStyle.width;
+      container.style.height = savedStyle.height;
+      container.style.borderRadius = '8px';
+      isFullscreen = false;
+    }
+  };
+  
+  closeBtn.onclick = function() {
+    container.remove();
+  };
+  
+  // Wait a bit to ensure video is in DOM before playing
+  setTimeout(function() {
+    if (document.body.contains(video)) {
+      video.play().catch(function(err) {
+        if (document.body.contains(video)) {
+          console.error('Preview play error:', err);
+        }
+      });
+    }
+  }, 100);
 }
 
 // Noise suppression
