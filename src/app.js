@@ -1342,12 +1342,9 @@ function checkSpeaking() {
     if (avatar) {
       if (average > 20) {
         avatar.classList.add('speaking');
-        console.log('Speaking detected for user:', oderId, 'level:', average);
       } else {
         avatar.classList.remove('speaking');
       }
-    } else {
-      console.log('Avatar not found for user:', oderId);
     }
   });
 }
@@ -1646,18 +1643,15 @@ function createPeerConnection(oderId) {
       var startY;
       
       header.addEventListener('mousedown', function(e) {
-        console.log('Header mousedown', e.target);
         if (e.target === header || e.target === title) {
           isDragging = true;
           initialX = e.clientX - container.offsetLeft;
           initialY = e.clientY - container.offsetTop;
           e.preventDefault();
-          console.log('Dragging started');
         }
       });
       
       resizeHandle.addEventListener('mousedown', function(e) {
-        console.log('Resize handle mousedown');
         isResizing = true;
         startWidth = container.offsetWidth;
         startHeight = container.offsetHeight;
@@ -1665,7 +1659,6 @@ function createPeerConnection(oderId) {
         startY = e.clientY;
         e.preventDefault();
         e.stopPropagation();
-        console.log('Resizing started');
       });
       
       var handleMouseMove = function(e) {
