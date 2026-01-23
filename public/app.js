@@ -1414,6 +1414,15 @@ function leaveVoiceChannel() {
   // Stop speaking detection
   stopSpeakingDetection();
   
+  // Remove all screen share windows
+  document.querySelectorAll('.screen-share-window').forEach(function(el) {
+    el.remove();
+  });
+  
+  // Remove local preview
+  var localPreview = document.getElementById('local-screen-preview');
+  if (localPreview) localPreview.remove();
+  
   // Stop screen sharing if active
   if (state.screenSharing) {
     if (state.screenStream) {
@@ -1521,7 +1530,6 @@ function createPeerConnection(oderId) {
       container.style.display = 'flex';
       container.style.flexDirection = 'column';
       container.style.overflow = 'hidden';
-      container.style.resize = 'both';
       container.style.minWidth = '400px';
       container.style.minHeight = '300px';
       
@@ -1593,8 +1601,21 @@ function createPeerConnection(oderId) {
       video.style.objectFit = 'contain';
       video.style.background = '#000';
       
+      // Create resize handle
+      var resizeHandle = document.createElement('div');
+      resizeHandle.style.position = 'absolute';
+      resizeHandle.style.bottom = '0';
+      resizeHandle.style.right = '0';
+      resizeHandle.style.width = '20px';
+      resizeHandle.style.height = '20px';
+      resizeHandle.style.cursor = 'nwse-resize';
+      resizeHandle.style.background = 'var(--accent)';
+      resizeHandle.style.borderRadius = '8px 0 8px 0';
+      resizeHandle.style.zIndex = '10';
+      
       container.appendChild(header);
       container.appendChild(video);
+      container.appendChild(resizeHandle);
       document.body.appendChild(container);
       
       // Make draggable
@@ -1605,9 +1626,11 @@ function createPeerConnection(oderId) {
       var initialY;
       
       header.addEventListener('mousedown', function(e) {
-        isDragging = true;
-        initialX = e.clientX - container.offsetLeft;
-        initialY = e.clientY - container.offsetTop;
+        if (e.target === header || e.target === title) {
+          isDragging = true;
+          initialX = e.clientX - container.offsetLeft;
+          initialY = e.clientY - container.offsetTop;
+        }
       });
       
       document.addEventListener('mousemove', function(e) {
@@ -1623,6 +1646,38 @@ function createPeerConnection(oderId) {
       
       document.addEventListener('mouseup', function() {
         isDragging = false;
+        isResizing = false;
+      });
+      
+      // Make resizable
+      var isResizing = false;
+      var startWidth;
+      var startHeight;
+      var startX;
+      var startY;
+      
+      resizeHandle.addEventListener('mousedown', function(e) {
+        isResizing = true;
+        startWidth = container.offsetWidth;
+        startHeight = container.offsetHeight;
+        startX = e.clientX;
+        startY = e.clientY;
+        e.stopPropagation();
+      });
+      
+      document.addEventListener('mousemove', function(e) {
+        if (isResizing) {
+          e.preventDefault();
+          var newWidth = startWidth + (e.clientX - startX);
+          var newHeight = startHeight + (e.clientY - startY);
+          
+          if (newWidth >= 400) {
+            container.style.width = newWidth + 'px';
+          }
+          if (newHeight >= 300) {
+            container.style.height = newHeight + 'px';
+          }
+        }
       });
       
       // Fullscreen toggle
