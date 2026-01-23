@@ -1667,6 +1667,10 @@ function toggleScreenShare() {
       state.screenStream = null;
     }
     
+    // Remove local preview
+    var localPreview = document.getElementById('local-screen-preview');
+    if (localPreview) localPreview.remove();
+    
     // Remove screen track from all peer connections
     peerConnections.forEach(function(pc) {
       var senders = pc.getSenders();
@@ -1711,11 +1715,25 @@ function toggleScreenShare() {
           var voiceScreenBtn = qS('#voice-screen');
           if (voiceScreenBtn) voiceScreenBtn.classList.add('active');
           
+          // Show local preview
+          showLocalScreenPreview(screenStream);
+          
           // Add screen track to all peer connections
           var videoTrack = screenStream.getVideoTracks()[0];
           peerConnections.forEach(function(pc, oderId) {
             pc.addTrack(videoTrack, screenStream);
             console.log('Added screen track to peer:', oderId);
+            
+            // Renegotiate connection
+            pc.createOffer().then(function(offer) {
+              return pc.setLocalDescription(offer);
+            }).then(function() {
+              send({
+                type: 'voice_signal',
+                to: oderId,
+                signal: pc.localDescription
+              });
+            });
           });
           
           send({ type: 'voice_screen', screen: true });
@@ -1749,11 +1767,25 @@ function toggleScreenShare() {
           var voiceScreenBtn = qS('#voice-screen');
           if (voiceScreenBtn) voiceScreenBtn.classList.add('active');
           
+          // Show local preview
+          showLocalScreenPreview(screenStream);
+          
           // Add screen track to all peer connections
           var videoTrack = screenStream.getVideoTracks()[0];
           peerConnections.forEach(function(pc, oderId) {
             pc.addTrack(videoTrack, screenStream);
             console.log('Added screen track to peer:', oderId);
+            
+            // Renegotiate connection
+            pc.createOffer().then(function(offer) {
+              return pc.setLocalDescription(offer);
+            }).then(function() {
+              send({
+                type: 'voice_signal',
+                to: oderId,
+                signal: pc.localDescription
+              });
+            });
           });
           
           send({ type: 'voice_screen', screen: true });
@@ -1772,6 +1804,51 @@ function toggleScreenShare() {
       showNotification('Демонстрация экрана не поддерживается');
     }
   }
+}
+
+function showLocalScreenPreview(stream) {
+  // Remove existing preview
+  var existingPreview = document.getElementById('local-screen-preview');
+  if (existingPreview) existingPreview.remove();
+  
+  // Create video element for preview
+  var video = document.createElement('video');
+  video.id = 'local-screen-preview';
+  video.srcObject = stream;
+  video.autoplay = true;
+  video.muted = true;
+  video.playsInline = true;
+  video.style.position = 'fixed';
+  video.style.bottom = '100px';
+  video.style.right = '20px';
+  video.style.width = '300px';
+  video.style.height = 'auto';
+  video.style.zIndex = '1000';
+  video.style.border = '2px solid var(--accent)';
+  video.style.borderRadius = '8px';
+  video.style.boxShadow = '0 4px 16px rgba(0,0,0,0.3)';
+  video.style.background = '#000';
+  
+  // Add label
+  var label = document.createElement('div');
+  label.textContent = 'Ваш экран';
+  label.style.position = 'fixed';
+  label.style.bottom = '100px';
+  label.style.right = '20px';
+  label.style.background = 'var(--accent)';
+  label.style.color = 'white';
+  label.style.padding = '4px 8px';
+  label.style.borderRadius = '4px 4px 0 0';
+  label.style.fontSize = '12px';
+  label.style.zIndex = '1001';
+  label.style.transform = 'translateY(-100%)';
+  
+  document.body.appendChild(video);
+  document.body.appendChild(label);
+  
+  video.play().catch(function(err) {
+    console.error('Preview play error:', err);
+  });
 }
 
 // Noise suppression
