@@ -1606,55 +1606,51 @@ function createPeerConnection(oderId) {
       resizeHandle.style.position = 'absolute';
       resizeHandle.style.bottom = '0';
       resizeHandle.style.right = '0';
-      resizeHandle.style.width = '20px';
-      resizeHandle.style.height = '20px';
+      resizeHandle.style.width = '30px';
+      resizeHandle.style.height = '30px';
       resizeHandle.style.cursor = 'nwse-resize';
-      resizeHandle.style.background = 'var(--accent)';
-      resizeHandle.style.borderRadius = '8px 0 8px 0';
+      resizeHandle.style.background = 'transparent';
       resizeHandle.style.zIndex = '10';
+      resizeHandle.title = 'Изменить размер';
+      
+      // Add visual indicator
+      var resizeIcon = document.createElement('div');
+      resizeIcon.style.position = 'absolute';
+      resizeIcon.style.bottom = '2px';
+      resizeIcon.style.right = '2px';
+      resizeIcon.style.width = '0';
+      resizeIcon.style.height = '0';
+      resizeIcon.style.borderStyle = 'solid';
+      resizeIcon.style.borderWidth = '0 0 15px 15px';
+      resizeIcon.style.borderColor = 'transparent transparent var(--accent) transparent';
+      resizeIcon.style.pointerEvents = 'none';
+      resizeHandle.appendChild(resizeIcon);
       
       container.appendChild(header);
       container.appendChild(video);
       container.appendChild(resizeHandle);
       document.body.appendChild(container);
       
-      // Make draggable
+      // Make draggable and resizable
       var isDragging = false;
+      var isResizing = false;
       var currentX;
       var currentY;
       var initialX;
       var initialY;
+      var startWidth;
+      var startHeight;
+      var startX;
+      var startY;
       
       header.addEventListener('mousedown', function(e) {
         if (e.target === header || e.target === title) {
           isDragging = true;
           initialX = e.clientX - container.offsetLeft;
           initialY = e.clientY - container.offsetTop;
-        }
-      });
-      
-      document.addEventListener('mousemove', function(e) {
-        if (isDragging) {
           e.preventDefault();
-          currentX = e.clientX - initialX;
-          currentY = e.clientY - initialY;
-          container.style.left = currentX + 'px';
-          container.style.top = currentY + 'px';
-          container.style.transform = 'none';
         }
       });
-      
-      document.addEventListener('mouseup', function() {
-        isDragging = false;
-        isResizing = false;
-      });
-      
-      // Make resizable
-      var isResizing = false;
-      var startWidth;
-      var startHeight;
-      var startX;
-      var startY;
       
       resizeHandle.addEventListener('mousedown', function(e) {
         isResizing = true;
@@ -1662,11 +1658,19 @@ function createPeerConnection(oderId) {
         startHeight = container.offsetHeight;
         startX = e.clientX;
         startY = e.clientY;
+        e.preventDefault();
         e.stopPropagation();
       });
       
-      document.addEventListener('mousemove', function(e) {
-        if (isResizing) {
+      var handleMouseMove = function(e) {
+        if (isDragging) {
+          e.preventDefault();
+          currentX = e.clientX - initialX;
+          currentY = e.clientY - initialY;
+          container.style.left = currentX + 'px';
+          container.style.top = currentY + 'px';
+          container.style.transform = 'none';
+        } else if (isResizing) {
           e.preventDefault();
           var newWidth = startWidth + (e.clientX - startX);
           var newHeight = startHeight + (e.clientY - startY);
@@ -1678,7 +1682,15 @@ function createPeerConnection(oderId) {
             container.style.height = newHeight + 'px';
           }
         }
-      });
+      };
+      
+      var handleMouseUp = function() {
+        isDragging = false;
+        isResizing = false;
+      };
+      
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
       
       // Fullscreen toggle
       var isFullscreen = false;
