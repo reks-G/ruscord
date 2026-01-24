@@ -2027,88 +2027,28 @@ function toggleScreenShare() {
 }
 
 function showLocalScreenPreview(stream) {
-  // Remove existing preview window
+  // Remove existing preview
   var existingContainer = document.getElementById('local-screen-preview-container');
   if (existingContainer) {
     existingContainer.remove();
   }
   
-  // Create container
-  var container = document.createElement('div');
-  container.id = 'local-screen-preview-container';
-  container.className = 'screen-share-window';
-  container.style.position = 'fixed';
-  container.style.bottom = '100px';
-  container.style.right = '20px';
-  container.style.width = '400px';
-  container.style.height = '300px';
-  container.style.zIndex = '1000';
-  container.style.background = '#000';
-  container.style.border = '2px solid var(--accent)';
-  container.style.borderRadius = '8px';
-  container.style.boxShadow = '0 8px 32px rgba(0,0,0,0.5)';
-  container.style.display = 'flex';
-  container.style.flexDirection = 'column';
-  container.style.overflow = 'hidden';
-  container.style.minWidth = '300px';
-  container.style.minHeight = '200px';
+  // Add screen share to voice users view
+  var voiceUsers = qS('#voice-users');
+  if (!voiceUsers) return;
   
-  // Create header bar
-  var header = document.createElement('div');
-  header.style.background = 'var(--bg-secondary)';
-  header.style.padding = '8px 12px';
-  header.style.display = 'flex';
-  header.style.alignItems = 'center';
-  header.style.justifyContent = 'space-between';
-  header.style.cursor = 'move';
-  header.style.userSelect = 'none';
-  
-  var title = document.createElement('span');
-  title.textContent = 'Ваш экран';
-  title.style.color = 'var(--text-primary)';
-  title.style.fontSize = '14px';
-  title.style.fontWeight = '500';
-  
-  var controls = document.createElement('div');
-  controls.style.display = 'flex';
-  controls.style.gap = '8px';
-  
-  // Fullscreen button
-  var fullscreenBtn = document.createElement('button');
-  fullscreenBtn.innerHTML = '⛶';
-  fullscreenBtn.style.width = '24px';
-  fullscreenBtn.style.height = '24px';
-  fullscreenBtn.style.border = 'none';
-  fullscreenBtn.style.borderRadius = '4px';
-  fullscreenBtn.style.background = 'var(--bg-tertiary)';
-  fullscreenBtn.style.color = 'var(--text-primary)';
-  fullscreenBtn.style.fontSize = '16px';
-  fullscreenBtn.style.cursor = 'pointer';
-  fullscreenBtn.style.display = 'flex';
-  fullscreenBtn.style.alignItems = 'center';
-  fullscreenBtn.style.justifyContent = 'center';
-  fullscreenBtn.title = 'Полный экран';
-  
-  // Close button
-  var closeBtn = document.createElement('button');
-  closeBtn.innerHTML = '✕';
-  closeBtn.style.width = '24px';
-  closeBtn.style.height = '24px';
-  closeBtn.style.border = 'none';
-  closeBtn.style.borderRadius = '4px';
-  closeBtn.style.background = 'var(--danger)';
-  closeBtn.style.color = 'white';
-  closeBtn.style.fontSize = '16px';
-  closeBtn.style.cursor = 'pointer';
-  closeBtn.style.display = 'flex';
-  closeBtn.style.alignItems = 'center';
-  closeBtn.style.justifyContent = 'center';
-  closeBtn.title = 'Закрыть';
-  
-  controls.appendChild(fullscreenBtn);
-  controls.appendChild(closeBtn);
-  header.appendChild(title);
-  header.appendChild(controls);
+  // Create screen share container
+  var screenDiv = document.createElement('div');
+  screenDiv.id = 'local-screen-preview-container';
+  screenDiv.className = 'voice-screen-share';
+  screenDiv.style.position = 'relative';
+  screenDiv.style.width = '600px';
+  screenDiv.style.maxWidth = '90vw';
+  screenDiv.style.background = '#000';
+  screenDiv.style.borderRadius = '12px';
+  screenDiv.style.overflow = 'hidden';
+  screenDiv.style.border = '3px solid var(--accent)';
+  screenDiv.style.boxShadow = '0 8px 32px rgba(168, 85, 247, 0.4)';
   
   // Create video element
   var video = document.createElement('video');
@@ -2118,167 +2058,82 @@ function showLocalScreenPreview(stream) {
   video.muted = true;
   video.playsInline = true;
   video.style.width = '100%';
-  video.style.height = '100%';
-  video.style.objectFit = 'contain';
+  video.style.height = 'auto';
+  video.style.display = 'block';
   video.style.background = '#000';
-  video.style.pointerEvents = 'none';
-  video.style.flex = '1';
   
-  // Create resize handle
-  var resizeHandle = document.createElement('div');
-  resizeHandle.style.position = 'absolute';
-  resizeHandle.style.bottom = '0';
-  resizeHandle.style.right = '0';
-  resizeHandle.style.width = '30px';
-  resizeHandle.style.height = '30px';
-  resizeHandle.style.cursor = 'nwse-resize';
-  resizeHandle.style.background = 'transparent';
-  resizeHandle.style.zIndex = '10';
-  resizeHandle.title = 'Изменить размер';
+  // Create label overlay
+  var label = document.createElement('div');
+  label.textContent = 'Демонстрация экрана';
+  label.style.position = 'absolute';
+  label.style.bottom = '12px';
+  label.style.left = '12px';
+  label.style.background = 'rgba(0, 0, 0, 0.8)';
+  label.style.color = 'white';
+  label.style.padding = '6px 12px';
+  label.style.borderRadius = '6px';
+  label.style.fontSize = '14px';
+  label.style.fontWeight = '500';
+  label.style.backdropFilter = 'blur(10px)';
   
-  // Add visual indicator
-  var resizeIcon = document.createElement('div');
-  resizeIcon.style.position = 'absolute';
-  resizeIcon.style.bottom = '2px';
-  resizeIcon.style.right = '2px';
-  resizeIcon.style.width = '0';
-  resizeIcon.style.height = '0';
-  resizeIcon.style.borderStyle = 'solid';
-  resizeIcon.style.borderWidth = '0 0 15px 15px';
-  resizeIcon.style.borderColor = 'transparent transparent var(--accent) transparent';
-  resizeIcon.style.pointerEvents = 'none';
-  resizeHandle.appendChild(resizeIcon);
+  screenDiv.appendChild(video);
+  screenDiv.appendChild(label);
   
-  container.appendChild(header);
-  container.appendChild(video);
-  container.appendChild(resizeHandle);
-  document.body.appendChild(container);
-  
-  // Dragging and resizing state
-  var dragState = {
-    isDragging: false,
-    isResizing: false,
-    startX: 0,
-    startY: 0,
-    startLeft: 0,
-    startTop: 0,
-    startWidth: 0,
-    startHeight: 0
-  };
-  
-  // Mouse down on header - start dragging
-  header.onmousedown = function(e) {
-    // Don't drag if clicking buttons
-    if (e.target === fullscreenBtn || e.target === closeBtn) {
-      return;
-    }
-    
-    dragState.isDragging = true;
-    dragState.startX = e.clientX;
-    dragState.startY = e.clientY;
-    dragState.startLeft = container.offsetLeft;
-    dragState.startTop = container.offsetTop;
-    
-    header.style.cursor = 'grabbing';
-    e.preventDefault();
-    e.stopPropagation();
-    return false;
-  };
-  
-  // Mouse down on resize handle - start resizing
-  resizeHandle.onmousedown = function(e) {
-    dragState.isResizing = true;
-    dragState.startX = e.clientX;
-    dragState.startY = e.clientY;
-    dragState.startWidth = container.offsetWidth;
-    dragState.startHeight = container.offsetHeight;
-    
-    e.preventDefault();
-    e.stopPropagation();
-    return false;
-  };
-  
-  // Global mouse move
-  var globalMouseMove = function(e) {
-    if (dragState.isDragging) {
-      var deltaX = e.clientX - dragState.startX;
-      var deltaY = e.clientY - dragState.startY;
-      
-      container.style.left = (dragState.startLeft + deltaX) + 'px';
-      container.style.top = (dragState.startTop + deltaY) + 'px';
-      
-      e.preventDefault();
-      return false;
-    }
-    
-    if (dragState.isResizing) {
-      var deltaX = e.clientX - dragState.startX;
-      var deltaY = e.clientY - dragState.startY;
-      
-      var newWidth = dragState.startWidth + deltaX;
-      var newHeight = dragState.startHeight + deltaY;
-      
-      if (newWidth >= 400) {
-        container.style.width = newWidth + 'px';
-      }
-      if (newHeight >= 300) {
-        container.style.height = newHeight + 'px';
-      }
-      
-      e.preventDefault();
-      return false;
-    }
-  };
-  
-  // Global mouse up
-  var globalMouseUp = function(e) {
-    if (dragState.isDragging) {
-      dragState.isDragging = false;
-      header.style.cursor = 'move';
-    }
-    if (dragState.isResizing) {
-      dragState.isResizing = false;
-    }
-  };
-  
-  // Add global listeners
-  window.addEventListener('mousemove', globalMouseMove, true);
-  window.addEventListener('mouseup', globalMouseUp, true);
-  
-  // Fullscreen toggle
+  // Fullscreen functionality
   var isFullscreen = false;
-  var savedStyle = {};
-  fullscreenBtn.onclick = function() {
+  var savedStyles = {};
+  
+  screenDiv.ondblclick = function() {
     if (!isFullscreen) {
-      // Save current style
-      savedStyle = {
-        top: container.style.top,
-        left: container.style.left,
-        width: container.style.width,
-        height: container.style.height
+      // Save current styles
+      savedStyles = {
+        position: screenDiv.style.position,
+        width: screenDiv.style.width,
+        maxWidth: screenDiv.style.maxWidth,
+        borderRadius: screenDiv.style.borderRadius,
+        zIndex: screenDiv.style.zIndex
       };
       
       // Go fullscreen
-      container.style.top = '0';
-      container.style.left = '0';
-      container.style.width = '100%';
-      container.style.height = '100%';
-      container.style.borderRadius = '0';
+      screenDiv.style.position = 'fixed';
+      screenDiv.style.top = '0';
+      screenDiv.style.left = '0';
+      screenDiv.style.width = '100vw';
+      screenDiv.style.height = '100vh';
+      screenDiv.style.maxWidth = '100vw';
+      screenDiv.style.borderRadius = '0';
+      screenDiv.style.zIndex = '9999';
+      video.style.height = '100vh';
+      video.style.objectFit = 'contain';
+      label.textContent = 'Демонстрация экрана (двойной клик для выхода)';
       isFullscreen = true;
     } else {
       // Restore
-      container.style.top = savedStyle.top;
-      container.style.left = savedStyle.left;
-      container.style.width = savedStyle.width;
-      container.style.height = savedStyle.height;
-      container.style.borderRadius = '8px';
+      screenDiv.style.position = savedStyles.position;
+      screenDiv.style.top = '';
+      screenDiv.style.left = '';
+      screenDiv.style.width = savedStyles.width;
+      screenDiv.style.height = '';
+      screenDiv.style.maxWidth = savedStyles.maxWidth;
+      screenDiv.style.borderRadius = savedStyles.borderRadius;
+      screenDiv.style.zIndex = savedStyles.zIndex || '';
+      video.style.height = 'auto';
+      video.style.objectFit = 'cover';
+      label.textContent = 'Демонстрация экрана';
       isFullscreen = false;
     }
   };
   
-  closeBtn.onclick = function() {
-    container.remove();
-  };
+  // Add cursor hint
+  screenDiv.style.cursor = 'pointer';
+  screenDiv.title = 'Двойной клик для полноэкранного режима';
+  
+  // Insert at the beginning of voice users
+  if (voiceUsers.firstChild) {
+    voiceUsers.insertBefore(screenDiv, voiceUsers.firstChild);
+  } else {
+    voiceUsers.appendChild(screenDiv);
+  }
   
   // Wait a bit to ensure video is in DOM before playing
   setTimeout(function() {

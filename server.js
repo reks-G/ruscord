@@ -344,7 +344,7 @@ const httpServer = http.createServer((req, res) => {
   }
   
   let filePath = req.url === '/' ? '/index.html' : req.url;
-  filePath = path.join(__dirname, 'src', filePath);
+  filePath = path.join(__dirname, 'public', filePath);
   const ext = path.extname(filePath);
   
   fs.readFile(filePath, (err, data) => {
