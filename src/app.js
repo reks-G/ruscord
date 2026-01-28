@@ -1953,6 +1953,7 @@ function toggleScreenShare() {
         // Use first screen source (can be improved with selection dialog)
         var source = sources[0];
         
+        // Get video stream
         navigator.mediaDevices.getUserMedia({
           audio: false,
           video: {
@@ -1961,41 +1962,77 @@ function toggleScreenShare() {
               chromeMediaSourceId: source.id
             }
           }
-        }).then(function(screenStream) {
-          state.screenSharing = true;
-          state.screenStream = screenStream;
-          
-          var voiceScreenBtn = qS('#voice-screen');
-          if (voiceScreenBtn) voiceScreenBtn.classList.add('active');
-          
-          // Show local preview
-          showLocalScreenPreview(screenStream);
-          
-          // Add screen track to all peer connections
-          var videoTrack = screenStream.getVideoTracks()[0];
-          peerConnections.forEach(function(pc, oderId) {
-            pc.addTrack(videoTrack, screenStream);
-            console.log('Added screen track to peer:', oderId);
-            
-            // Renegotiate connection
-            pc.createOffer().then(function(offer) {
-              return pc.setLocalDescription(offer);
-            }).then(function() {
-              send({
-                type: 'voice_signal',
-                to: oderId,
-                signal: pc.localDescription
-              });
+        }).then(function(videoStream) {
+          // Try to get system audio (may not work on all systems)
+          navigator.mediaDevices.getUserMedia({
+            audio: {
+              mandatory: {
+                chromeMediaSource: 'desktop'
+              }
+            },
+            video: false
+          }).then(function(audioStream) {
+            // Combine video and audio streams
+            var combinedStream = new MediaStream();
+            videoStream.getVideoTracks().forEach(function(track) {
+              combinedStream.addTrack(track);
             });
+            audioStream.getAudioTracks().forEach(function(track) {
+              combinedStream.addTrack(track);
+            });
+            setupScreenShare(combinedStream);
+          }).catch(function() {
+            // No system audio available, use video only
+            console.log('System audio not available, using video only');
+            setupScreenShare(videoStream);
           });
           
-          send({ type: 'voice_screen', screen: true });
-          showNotification('Демонстрация экрана запущена');
-          
-          // Stop sharing when track ends
-          videoTrack.onended = function() {
-            toggleScreenShare();
-          };
+          function setupScreenShare(screenStream) {
+            state.screenSharing = true;
+            state.screenStream = screenStream;
+            
+            var voiceScreenBtn = qS('#voice-screen');
+            if (voiceScreenBtn) voiceScreenBtn.classList.add('active');
+            
+            // Show local preview
+            showLocalScreenPreview(screenStream);
+            
+            // Add screen tracks to all peer connections
+            var videoTrack = screenStream.getVideoTracks()[0];
+            var audioTrack = screenStream.getAudioTracks()[0];
+            
+            peerConnections.forEach(function(pc, oderId) {
+              if (videoTrack) {
+                pc.addTrack(videoTrack, screenStream);
+                console.log('Added screen video track to peer:', oderId);
+              }
+              if (audioTrack) {
+                pc.addTrack(audioTrack, screenStream);
+                console.log('Added screen audio track to peer:', oderId);
+              }
+              
+              // Renegotiate connection
+              pc.createOffer().then(function(offer) {
+                return pc.setLocalDescription(offer);
+              }).then(function() {
+                send({
+                  type: 'voice_signal',
+                  to: oderId,
+                  signal: pc.localDescription
+                });
+              });
+            });
+            
+            send({ type: 'voice_screen', screen: true });
+            showNotification('Демонстрация экрана запущена');
+            
+            // Stop sharing when track ends
+            if (videoTrack) {
+              videoTrack.onended = function() {
+                toggleScreenShare();
+              };
+            }
+          }
         }).catch(function(err) {
           console.error('Screen share error:', err);
           showNotification('Не удалось запустить демонстрацию экрана');
@@ -2023,11 +2060,22 @@ function toggleScreenShare() {
           // Show local preview
           showLocalScreenPreview(screenStream);
           
-          // Add screen track to all peer connections
+          // Add screen tracks to all peer connections
           var videoTrack = screenStream.getVideoTracks()[0];
+          var audioTrack = screenStream.getAudioTracks()[0];
+          
           peerConnections.forEach(function(pc, oderId) {
-            pc.addTrack(videoTrack, screenStream);
-            console.log('Added screen track to peer:', oderId);
+            // Add video track
+            if (videoTrack) {
+              pc.addTrack(videoTrack, screenStream);
+              console.log('Added screen video track to peer:', oderId);
+            }
+            
+            // Add audio track if available
+            if (audioTrack) {
+              pc.addTrack(audioTrack, screenStream);
+              console.log('Added screen audio track to peer:', oderId);
+            }
             
             // Renegotiate connection
             pc.createOffer().then(function(offer) {
