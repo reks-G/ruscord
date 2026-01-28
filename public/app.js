@@ -60,7 +60,9 @@ function displayStatus(s) {
 }
 
 function formatTime(ts) {
+  if (!ts) return '--:--';
   var d = new Date(ts);
+  if (isNaN(d.getTime())) return '--:--';
   return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 }
 
@@ -930,6 +932,17 @@ function renderVoiceUsers(channelId, users) {
     // Re-insert screen share
     vu.insertAdjacentHTML('afterbegin', screenShareHTML);
   }
+  
+  // Bind context menu to voice users
+  qSA('.voice-user').forEach(function(el) {
+    el.oncontextmenu = function(e) {
+      e.preventDefault();
+      var userId = el.dataset.userId;
+      if (userId && userId !== state.userId) {
+        showVoiceUserContext(e.clientX, e.clientY, userId);
+      }
+    };
+  });
 }
 
 function renderSearchResults() {
@@ -1092,11 +1105,14 @@ function renderUserSearchResults(results) {
 
 // ============ MESSAGES ============
 function messageHTML(m) {
-  var t = formatTime(m.time || Date.now());
-  var a = m.author || 'User';
-  var txt = m.text || '';
+  if (!m) return '';
+  
+  var t = formatTime(m.time || m.timestamp || Date.now());
+  var a = m.author || m.authorName || 'Удалённый пользователь';
+  var txt = m.text || m.content || '';
   var pendingClass = m.pending ? ' pending' : '';
   var editedMark = m.edited ? '<span class="edited">(ред.)</span>' : '';
+  var deletedUserClass = (!m.author && !m.authorName) ? ' deleted-user' : '';
   
   var replyHtml = '';
   if (m.replyTo) {
@@ -1142,7 +1158,7 @@ function messageHTML(m) {
     attachmentsHtml += '</div>';
   }
   
-  return '<div class="message' + (m.replyTo ? ' has-reply' : '') + pendingClass + '" data-id="' + m.id + '" data-author-id="' + (m.oderId || '') + '" data-author="' + escapeHtml(a) + '" data-text="' + escapeHtml(txt) + '">' +
+  return '<div class="message' + (m.replyTo ? ' has-reply' : '') + pendingClass + deletedUserClass + '" data-id="' + m.id + '" data-author-id="' + (m.oderId || m.authorId || '') + '" data-author="' + escapeHtml(a) + '" data-text="' + escapeHtml(txt) + '">' +
     replyHtml + forwardedHtml +
     '<div class="message-body">' +
     '<div class="avatar">' + (m.avatar ? '<img src="' + m.avatar + '">' : a.charAt(0).toUpperCase()) + '</div>' +
@@ -2319,6 +2335,29 @@ function showMemberContext(x, y, memberId) {
       send({ type: 'kick_member', serverId: state.currentServer, memberId: memberId });
     }
   }
+}
+
+function showVoiceUserContext(x, y, userId) {
+  hideContextMenu();
+  var ctx = qS('#voice-user-context');
+  if (!ctx) return;
+  
+  ctx.style.left = x + 'px';
+  ctx.style.top = y + 'px';
+  ctx.classList.add('visible');
+  ctx.dataset.userId = userId;
+  
+  // Bind actions
+  ctx.querySelector('[data-action="send-dm"]').onclick = function() {
+    hideContextMenu();
+    openDM(userId);
+  };
+  
+  ctx.querySelector('[data-action="add-friend"]').onclick = function() {
+    hideContextMenu();
+    send({ type: 'friend_request', to: userId });
+    alert('Запрос в друзья отправлен!');
+  };
 }
 
 function showReplyBar() {

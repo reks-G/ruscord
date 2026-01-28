@@ -2274,3 +2274,14 @@ body::before {
 .voice-user-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .voice-user-name { flex: 1; }
 .mute-icon { width: 14px; height: 14px; color: var(--danger); }
+
+
+/* Deleted user messages */
+.message.deleted-user .author {
+  color: var(--text-muted);
+  font-style: italic;
+}
+.message.deleted-user .avatar {
+  opacity: 0.5;
+  background: var(--bg-tertiary);
+}
