@@ -34,6 +34,20 @@ function createWindow() {
   const { session } = require('electron');
   session.defaultSession.clearCache();
   
+  // Create icon from SVG
+  const iconPath = path.join(__dirname, 'src', 'icon.svg');
+  let appIcon;
+  try {
+    const fs = require('fs');
+    const svgContent = fs.readFileSync(iconPath, 'utf8');
+    // Convert SVG to data URL
+    const svgBase64 = Buffer.from(svgContent).toString('base64');
+    const dataUrl = 'data:image/svg+xml;base64,' + svgBase64;
+    appIcon = nativeImage.createFromDataURL(dataUrl);
+  } catch (e) {
+    console.log('Could not load icon:', e.message);
+  }
+  
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -47,7 +61,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false
     },
-    icon: path.join(__dirname, 'src', 'icon.svg')
+    icon: appIcon || path.join(__dirname, 'src', 'icon.svg')
   });
 
   mainWindow.loadFile('src/index.html');
@@ -66,10 +80,14 @@ function createWindow() {
 }
 
 function createTray() {
-  const iconPath = path.join(__dirname, 'assets', 'icon.png');
+  const iconPath = path.join(__dirname, 'src', 'icon.svg');
   let icon;
   try {
-    icon = nativeImage.createFromPath(iconPath);
+    const fs = require('fs');
+    const svgContent = fs.readFileSync(iconPath, 'utf8');
+    const svgBase64 = Buffer.from(svgContent).toString('base64');
+    const dataUrl = 'data:image/svg+xml;base64,' + svgBase64;
+    icon = nativeImage.createFromDataURL(dataUrl);
     if (icon.isEmpty()) icon = nativeImage.createEmpty();
   } catch (e) {
     icon = nativeImage.createEmpty();
