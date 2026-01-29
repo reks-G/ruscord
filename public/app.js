@@ -1107,7 +1107,7 @@ function renderUserSearchResults(results) {
 function messageHTML(m) {
   if (!m) return '';
   
-  var t = formatTime(m.time || m.timestamp || Date.now());
+  var t = formatTime(m.time || m.timestamp || m.createdAt || Date.now());
   var a = m.author || m.authorName || 'Удалённый пользователь';
   var txt = m.text || m.content || '';
   var pendingClass = m.pending ? ' pending' : '';

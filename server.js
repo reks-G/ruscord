@@ -174,6 +174,18 @@ const blockedUsers = new Map();
 // Load from JSON if no DB
 if (!useDB) {
   Object.entries(loadJSON(SERVERS_FILE)).forEach(([id, srv]) => {
+    // Migrate messages without time field
+    if (srv.messages) {
+      Object.keys(srv.messages).forEach(channelId => {
+        srv.messages[channelId] = (srv.messages[channelId] || []).map(msg => {
+          if (!msg.time && !msg.timestamp) {
+            msg.time = Date.now() - Math.random() * 86400000; // Random time in last 24h
+          }
+          return msg;
+        });
+      });
+    }
+    
     servers.set(id, {
       ...srv,
       members: new Set(srv.members || []),
