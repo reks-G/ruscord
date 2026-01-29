@@ -34,18 +34,62 @@ function createWindow() {
   const { session } = require('electron');
   session.defaultSession.clearCache();
   
-  // Create icon from SVG
-  const iconPath = path.join(__dirname, 'src', 'icon.svg');
+  // Create simple icon using nativeImage
+  const size = 64;
   let appIcon;
+  
   try {
-    const fs = require('fs');
-    const svgContent = fs.readFileSync(iconPath, 'utf8');
-    // Convert SVG to data URL
-    const svgBase64 = Buffer.from(svgContent).toString('base64');
-    const dataUrl = 'data:image/svg+xml;base64,' + svgBase64;
-    appIcon = nativeImage.createFromDataURL(dataUrl);
+    // Create a simple colored square icon
+    const iconBuffer = Buffer.alloc(size * size * 4);
+    
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const idx = (y * size + x) * 4;
+        // Calculate distance from center for circle
+        const dx = x - size/2;
+        const dy = y - size/2;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        
+        if (dist < size/2 - 2) {
+          // Inside circle - gradient purple to blue
+          const t = x / size;
+          iconBuffer[idx] = Math.floor(168 * (1-t) + 59 * t);     // R
+          iconBuffer[idx + 1] = Math.floor(85 * (1-t) + 130 * t); // G
+          iconBuffer[idx + 2] = Math.floor(247 * (1-t) + 246 * t); // B
+          iconBuffer[idx + 3] = 255; // A
+          
+          // Draw M letter (simplified)
+          const cx = size/2;
+          const cy = size/2;
+          const letterSize = size * 0.5;
+          const lx = x - cx;
+          const ly = y - cy;
+          
+          // M shape detection (very simplified)
+          if (Math.abs(ly) < letterSize/2) {
+            if (Math.abs(lx + letterSize/3) < 3 || // left vertical
+                Math.abs(lx - letterSize/3) < 3 || // right vertical
+                (ly < 0 && Math.abs(lx - ly * 0.5) < 3) || // left diagonal
+                (ly < 0 && Math.abs(lx + ly * 0.5) < 3)) { // right diagonal
+              iconBuffer[idx] = 255;
+              iconBuffer[idx + 1] = 255;
+              iconBuffer[idx + 2] = 255;
+            }
+          }
+        } else {
+          // Outside circle - transparent
+          iconBuffer[idx] = 0;
+          iconBuffer[idx + 1] = 0;
+          iconBuffer[idx + 2] = 0;
+          iconBuffer[idx + 3] = 0;
+        }
+      }
+    }
+    
+    appIcon = nativeImage.createFromBuffer(iconBuffer, { width: size, height: size });
   } catch (e) {
-    console.log('Could not load icon:', e.message);
+    console.log('Could not create icon:', e.message);
+    appIcon = null;
   }
   
   mainWindow = new BrowserWindow({
@@ -61,7 +105,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false
     },
-    icon: appIcon || path.join(__dirname, 'src', 'icon.svg')
+    icon: appIcon
   });
 
   mainWindow.loadFile('src/index.html');
@@ -80,18 +124,41 @@ function createWindow() {
 }
 
 function createTray() {
-  const iconPath = path.join(__dirname, 'src', 'icon.svg');
+  // Create simple icon for tray
+  const size = 32;
   let icon;
+  
   try {
-    const fs = require('fs');
-    const svgContent = fs.readFileSync(iconPath, 'utf8');
-    const svgBase64 = Buffer.from(svgContent).toString('base64');
-    const dataUrl = 'data:image/svg+xml;base64,' + svgBase64;
-    icon = nativeImage.createFromDataURL(dataUrl);
+    const iconBuffer = Buffer.alloc(size * size * 4);
+    
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const idx = (y * size + x) * 4;
+        const dx = x - size/2;
+        const dy = y - size/2;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        
+        if (dist < size/2 - 1) {
+          const t = x / size;
+          iconBuffer[idx] = Math.floor(168 * (1-t) + 59 * t);
+          iconBuffer[idx + 1] = Math.floor(85 * (1-t) + 130 * t);
+          iconBuffer[idx + 2] = Math.floor(247 * (1-t) + 246 * t);
+          iconBuffer[idx + 3] = 255;
+        } else {
+          iconBuffer[idx] = 0;
+          iconBuffer[idx + 1] = 0;
+          iconBuffer[idx + 2] = 0;
+          iconBuffer[idx + 3] = 0;
+        }
+      }
+    }
+    
+    icon = nativeImage.createFromBuffer(iconBuffer, { width: size, height: size });
     if (icon.isEmpty()) icon = nativeImage.createEmpty();
   } catch (e) {
     icon = nativeImage.createEmpty();
   }
+  
   tray = new Tray(icon);
   
   const contextMenu = Menu.buildFromTemplate([
