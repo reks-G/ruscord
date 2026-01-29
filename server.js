@@ -268,8 +268,14 @@ function getDMKey(id1, id2) {
 }
 
 function getAccountById(userId) {
+  // First check accounts
   for (const acc of accounts.values()) {
     if (acc.id === userId) return acc;
+  }
+  // Fallback to online users
+  if (onlineUsers.has(userId)) {
+    const online = onlineUsers.get(userId);
+    return { id: userId, name: online.name, avatar: online.avatar, status: online.status };
   }
   return null;
 }
@@ -1074,12 +1080,17 @@ const handlers = {
     const { name, to } = data;
     const userId = ws.userId;
     
+    console.log('friend_request from', userId, 'to:', to, 'name:', name);
+    console.log('accounts size:', accounts.size, 'onlineUsers size:', onlineUsers.size);
+    
     // Find target by name or by ID
     let target;
     if (to) {
       target = getAccountById(to);
+      console.log('Found by ID:', target ? target.name : 'not found');
     } else if (name) {
       target = getAccountByName(name);
+      console.log('Found by name:', target ? target.id : 'not found');
     }
     
     if (!target) {
